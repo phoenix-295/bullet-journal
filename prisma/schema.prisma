@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────
+
+enum EntryType {
+  task
+  event
+  note
+  priority
+}
+
+// ─── Models ───────────────────────────────────────────────────
+
+model DailyLog {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  entries   Entry[]
+}
+
+model Entry {
+  id         String    @id @default(cuid())
+  type       EntryType
+  text       String
+  done       Boolean   @default(false)
+  order      Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  dailyLogId String
+  dailyLog   DailyLog  @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+}
+
+model Collection {
+  id        String           @id @default(cuid())
+  name      String
+  icon      String           @default("◎")
+  order     Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  items     CollectionItem[]
+}
+
+model CollectionItem {
+  id           String     @id @default(cuid())
+  text         String
+  done         Boolean    @default(false)
+  order        Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+}
