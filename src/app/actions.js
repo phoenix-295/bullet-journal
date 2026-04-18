@@ -27,12 +27,12 @@ async function getOrCreateLog(dateStr) {
   })
 }
 
-export async function addEntry(dateStr, type, text) {
+export async function addEntry(dateStr, type, text, done = false) {
   await requireAuth()
   const log = await getOrCreateLog(dateStr)
   const count = await prisma.entry.count({ where: { dailyLogId: log.id } })
   await prisma.entry.create({
-    data: { type, text, dailyLogId: log.id, order: count },
+    data: { type, text, done, dailyLogId: log.id, order: count },
   })
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useTransition, memo } from 'react'
+import { useState, useRef, useEffect, useCallback, useTransition, memo, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   addEntry, toggleEntry, deleteEntry, reorderEntries,
@@ -649,7 +649,8 @@ export default function BulletJournal({ logs, collections, meals }) {
   const [viewMonth, setViewMonth] = useState({ year: _now.getFullYear(), month: _now.getMonth() })
   const [filterType, setFilterType] = useState(null)
   const [showMeals, setShowMeals] = useState(false)
-  const [mealsOpen, setMealsOpen] = useState(true)
+  const [mealsOpen, setMealsOpen] = useState(false)
+  const [overdueOpen, setOverdueOpen] = useState(true)
   const [mealsMap, setMealsMap] = useState(() => mealsToMap(meals))
   const dragIndexRef = useRef(null)
   const dragOverIndexRef = useRef(null)
@@ -691,6 +692,22 @@ export default function BulletJournal({ logs, collections, meals }) {
   const allCurrentEntries = entries[selectedDate] || []
   const currentEntries = filterType ? allCurrentEntries.filter(e => e.type === filterType) : allCurrentEntries
   const { total, done } = getTaskProgress(currentEntries)
+
+  const overdueEntries = useMemo(() => {
+    const groups = []
+    for (const [key, dayEntries] of Object.entries(entries)) {
+      if (key >= selectedDate) continue
+      const incomplete = dayEntries.filter(e => !e.done && (e.type === 'task' || e.type === 'priority'))
+      if (incomplete.length === 0) continue
+      const [sy, sm, sd] = selectedDate.split('-').map(Number)
+      const [ky, km, kd] = key.split('-').map(Number)
+      const daysAgo = Math.round(
+        (new Date(sy, sm - 1, sd) - new Date(ky, km - 1, kd)) / 86400000
+      )
+      groups.push({ key, daysAgo, entries: incomplete })
+    }
+    return groups.sort((a, b) => a.key < b.key ? 1 : -1)
+  }, [entries, selectedDate])
   const progressPct = total > 0 ? Math.round((done / total) * 100) : 0
 
 const selectDate = useCallback((key) => {
@@ -718,6 +735,21 @@ const selectDate = useCallback((key) => {
     }))
     startTransition(() => { deleteEntry(id) })
   }, [selectedDate])
+
+  const handleOverdueComplete = useCallback((id, fromDateKey) => {
+    const entry = (entries[fromDateKey] || []).find(e => e.id === id)
+    if (!entry) return
+    const migrated = { id: `temp-${Date.now()}`, type: entry.type, text: entry.text, done: true }
+    setEntries(prev => ({
+      ...prev,
+      [fromDateKey]: (prev[fromDateKey] || []).filter(e => e.id !== id),
+      [selectedDate]: [...(prev[selectedDate] || []), migrated],
+    }))
+    startTransition(async () => {
+      await deleteEntry(id)
+      await addEntry(selectedDate, entry.type, entry.text, true)
+    })
+  }, [selectedDate, entries])
 
   const handleCreateCollection = useCallback((name, icon) => {
     const tempId = `temp-${Date.now()}`
@@ -1026,6 +1058,33 @@ const selectDate = useCallback((key) => {
         {/* Content */}
         {!activeCollection && view === 'daily' && (
           <>
+            {overdueEntries.length > 0 && (
+              <div className="overdue-section">
+                <div className="overdue-header" onClick={() => setOverdueOpen(o => !o)}>
+                  <span className="overdue-header-label">
+                    {overdueEntries.reduce((s, g) => s + g.entries.length, 0)} incomplete from past days
+                  </span>
+                  <span className="overdue-header-arrow">{overdueOpen ? '▾' : '▸'}</span>
+                </div>
+                {overdueOpen && overdueEntries.map(({ key, daysAgo, entries: dayEntries }) => (
+                  <div key={key} className="overdue-group">
+                    <div className="overdue-date-label">
+                      {daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`} · {parseKey(key).month} {parseKey(key).day}
+                    </div>
+                    {dayEntries.map((entry, i) => (
+                      <EntryItem
+                        key={entry.id}
+                        entry={entry}
+                        onToggle={(id) => handleOverdueComplete(id, key)}
+                        onDelete={(id) => handleDelete(id, key)}
+                        animDelay={i * 40}
+                        isDragOver={false}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="journal-entries" key={entriesKey}>
               {currentEntries.length === 0 ? (
                 <div className="journal-entries-empty animate-fade-in">
@@ -1035,7 +1094,7 @@ const selectDate = useCallback((key) => {
                   </span>
                 </div>
               ) : (
-                currentEntries.map((entry, i) => (
+                [...currentEntries].sort((a, b) => a.done - b.done).map((entry, i) => (
                   <EntryItem
                     key={entry.id}
                     entry={entry}

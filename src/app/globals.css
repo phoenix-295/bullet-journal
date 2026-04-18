@@ -773,6 +773,59 @@ body {
   color: var(--sienna);
 }
 
+/* ─── Overdue Section ───────────────────────────────────────── */
+.overdue-section {
+  border-bottom: 1px solid var(--parchment-border);
+  flex-shrink: 0;
+  overflow-y: auto;
+  max-height: 40vh;
+}
+
+.overdue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 52px;
+  cursor: pointer;
+  user-select: none;
+  background: color-mix(in srgb, #c0392b 6%, var(--parchment));
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.overdue-header:hover {
+  background: color-mix(in srgb, #c0392b 10%, var(--parchment));
+}
+
+.overdue-header-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #c0392b;
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+}
+
+.overdue-header-arrow {
+  font-size: 12px;
+  color: #c0392b;
+  opacity: 0.7;
+}
+
+.overdue-group {
+  padding: 8px 52px 6px;
+}
+
+.overdue-date-label {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #c0392b;
+  margin-bottom: 4px;
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  opacity: 0.8;
+}
+
 /* ─── Add Entry Form ────────────────────────────────────────── */
 .journal-add-form {
   padding: 16px 52px 28px;
@@ -1646,6 +1699,14 @@ body {
 
   .journal-add-form {
     padding: 12px 20px 20px;
+  }
+
+  .overdue-header {
+    padding: 8px 20px;
+  }
+
+  .overdue-group {
+    padding: 8px 20px 6px;
   }
 
   .add-form-type-selector {
