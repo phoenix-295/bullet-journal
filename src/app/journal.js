@@ -963,6 +963,14 @@ const selectDate = useCallback((key) => {
           <span className="theme-toggle-icon">{isDark ? '○' : '●'}</span>
           {isDark ? 'Light mode' : 'Dark mode'}
         </button>
+        <button
+          className={`sync-btn${isRefreshing ? ' syncing' : ''}`}
+          onClick={() => { setIsRefreshing(true); router.refresh(); setTimeout(() => setIsRefreshing(false), 1000) }}
+          disabled={isRefreshing}
+        >
+          <span className="sync-icon">↻</span>
+          {isRefreshing ? 'Syncing…' : 'Sync'}
+        </button>
         <form action={logout}>
           <button className="logout-btn" type="submit">⎋ Sign out</button>
         </form>

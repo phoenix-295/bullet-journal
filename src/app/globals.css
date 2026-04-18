@@ -203,6 +203,46 @@
   color: var(--sidebar-text);
 }
 
+.sync-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--sidebar-border);
+  cursor: pointer;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  color: var(--sidebar-muted);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: color 0.15s ease, background 0.15s ease;
+  width: 100%;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.sync-btn:hover:not(:disabled) {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
+}
+
+.sync-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.sync-icon {
+  font-size: 14px;
+  display: inline-block;
+}
+
+.sync-btn.syncing .sync-icon {
+  animation: spin 0.7s linear infinite;
+}
+
 /* ─── Reset & Base ──────────────────────────────────────────── */
 *,
 *::before,
