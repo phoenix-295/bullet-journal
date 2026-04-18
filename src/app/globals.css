@@ -983,6 +983,205 @@ body {
   font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
 }
 
+/* ─── Nav buttons (prev/next) ───────────────────────────────── */
+.journal-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.journal-nav-row .journal-date-title {
+  margin-bottom: 0;
+}
+
+.nav-btn {
+  background: transparent;
+  border: 1px solid var(--parchment-border);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.nav-btn:hover {
+  background: var(--parchment-alt);
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+
+/* ─── Sidebar: Collections section ─────────────────────────── */
+.sidebar-collections-section {
+  border-bottom: 1px solid var(--sidebar-border);
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar-collections-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 8px 24px;
+}
+
+.sidebar-collections-label {
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--sidebar-muted);
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+}
+
+.sidebar-add-btn {
+  background: transparent;
+  border: none;
+  color: var(--sidebar-muted);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 1px 6px 3px;
+  border-radius: 4px;
+  transition: color 0.12s ease, background 0.12s ease;
+  font-family: inherit;
+}
+
+.sidebar-add-btn:hover {
+  color: var(--sidebar-active);
+  background: var(--sidebar-hover);
+}
+
+.sidebar-collection-item.active {
+  background: var(--sidebar-hover);
+}
+
+.sidebar-collection-item.active .sidebar-collection-icon {
+  color: var(--sidebar-active);
+}
+
+.sidebar-collection-item.active .sidebar-collection-name {
+  opacity: 1;
+}
+
+/* ─── New Collection Form ────────────────────────────────────── */
+.new-collection-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px 10px 24px;
+  background: var(--sidebar-accent);
+  border-bottom: 1px solid var(--sidebar-border);
+}
+
+.new-collection-icon-input {
+  width: 28px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--sidebar-border);
+  color: var(--sidebar-text);
+  font-size: 13px;
+  text-align: center;
+  padding: 2px 0;
+  outline: none;
+}
+
+.new-collection-name-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--sidebar-border);
+  color: var(--sidebar-text);
+  font-size: 13px;
+  padding: 2px 4px;
+  outline: none;
+  font-family: var(--font-body), "EB Garamond", Georgia, serif;
+}
+
+.new-collection-name-input::placeholder,
+.new-collection-icon-input::placeholder {
+  color: var(--sidebar-muted);
+  opacity: 0.6;
+}
+
+.new-collection-name-input:focus,
+.new-collection-icon-input:focus {
+  border-bottom-color: var(--sidebar-active);
+}
+
+.new-collection-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.new-collection-save,
+.new-collection-cancel {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  transition: all 0.12s ease;
+  font-family: inherit;
+}
+
+.new-collection-save {
+  color: var(--sidebar-active);
+}
+
+.new-collection-save:hover {
+  background: var(--sidebar-hover);
+}
+
+.new-collection-save:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.new-collection-cancel {
+  color: var(--sidebar-muted);
+}
+
+.new-collection-cancel:hover {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
+}
+
+/* ─── Collection View ────────────────────────────────────────── */
+.collection-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.collection-delete-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.12s ease;
+  margin-left: auto;
+  align-self: center;
+  line-height: 1;
+}
+
+.collection-delete-btn:hover {
+  background: var(--parchment-alt);
+  color: var(--sienna);
+}
+
 /* ─── Animations ────────────────────────────────────────────── */
 @keyframes entryIn {
   from {

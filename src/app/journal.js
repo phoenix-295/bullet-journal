@@ -2,7 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { addEntry, toggleEntry, deleteEntry } from './actions'
+import {
+  addEntry, toggleEntry, deleteEntry,
+  createCollection, deleteCollection,
+  addCollectionItem, toggleCollectionItem, deleteCollectionItem,
+} from './actions'
 
 /* ─── Config ─────────────────────────────────────────────────── */
 
@@ -13,48 +17,74 @@ const BULLET_TYPES = {
   priority: { symbol: '★',  label: 'Priority', colorClass: 'type-priority' },
 }
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAYS   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const MONTH_LONG  = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
-// April 18 2026 = Thursday (index 4)
-// Build 14 days ending today
-const buildDates = () => {
-  const dates = []
-  const baseDay = 4 // Thursday
-  for (let i = 0; i < 14; i++) {
-    const day = 18 - i
-    const weekdayIdx = ((baseDay - i) % 7 + 7) % 7
-    dates.push({
-      key: `Apr ${day}`,
-      day,
-      month: 'Apr',
-      weekday: WEEKDAYS[weekdayIdx],
-    })
-  }
-  return dates
+// Key format: "YYYY-MM-DD" (local time)
+function makeKey(year, month0, day) {
+  return `${year}-${String(month0 + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-const DATES = buildDates()
-const TODAY = DATES[0].key
+// Today in local time
+const _now = new Date()
+const TODAY = makeKey(_now.getFullYear(), _now.getMonth(), _now.getDate())
 
-// April 2026: Apr 1 = Monday (idx 1), 30 days
-const MONTH_CELLS = (() => {
-  const cells = []
-  const startWeekday = 1 // Monday
+// 14 days ending today (for the date picker strip)
+const DATES = Array.from({ length: 14 }, (_, i) => {
+  const d = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate() - i)
+  return {
+    key:     makeKey(d.getFullYear(), d.getMonth(), d.getDate()),
+    day:     d.getDate(),
+    month:   MONTH_SHORT[d.getMonth()],
+    weekday: WEEKDAYS[d.getDay()],
+    year:    d.getFullYear(),
+  }
+})
+
+// Shift a "YYYY-MM-DD" key by N days
+function offsetDate(key, days) {
+  const [y, m, d] = key.split('-').map(Number)
+  const dt = new Date(y, m - 1, d + days)
+  return makeKey(dt.getFullYear(), dt.getMonth(), dt.getDate())
+}
+
+// Build month grid cells for any year/month0
+function buildMonthCells(year, month0) {
+  const cells        = []
+  const startWeekday = new Date(year, month0, 1).getDay()
+  const daysInMonth  = new Date(year, month0 + 1, 0).getDate()
   for (let i = 0; i < startWeekday; i++) cells.push(null)
-  for (let day = 1; day <= 30; day++) {
-    const wIdx = (startWeekday + day - 1) % 7
-    cells.push({ key: `Apr ${day}`, day, weekday: WEEKDAYS[wIdx] })
+  for (let day = 1; day <= daysInMonth; day++) {
+    cells.push({
+      key:     makeKey(year, month0, day),
+      day,
+      weekday: WEEKDAYS[new Date(year, month0, day).getDay()],
+    })
   }
   while (cells.length % 7 !== 0) cells.push(null)
   return cells
-})()
+}
 
 /* ─── Helpers ────────────────────────────────────────────────── */
 
+// DB stores UTC midnight — use UTC methods to recover the calendar date
 function dateToKey(date) {
   const d = new Date(date)
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}`
+  return makeKey(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+}
+
+// Parse a "YYYY-MM-DD" key into display fields
+function parseKey(key) {
+  const [y, m, d] = key.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  return {
+    year:       y,
+    month:      MONTH_SHORT[m - 1],
+    monthLong:  MONTH_LONG[m - 1],
+    day:        d,
+    weekday:    WEEKDAYS[dt.getDay()],
+  }
 }
 
 function logsToEntries(logs) {
@@ -78,21 +108,18 @@ function getTaskProgress(entries) {
 }
 
 function getWeekDays(dateKey) {
-  const info = DATES.find(d => d.key === dateKey) || DATES[0]
-  const wIdx = WEEKDAYS.indexOf(info.weekday)
+  const [y, m, d] = dateKey.split('-').map(Number)
+  const base = new Date(y, m - 1, d)
+  const wIdx = base.getDay()
   return Array.from({ length: 7 }, (_, i) => {
-    const offset = i - wIdx
-    const day = info.day + offset
-    const inMonth = day >= 1 && day <= 30
-    if (inMonth) {
-      return { key: `Apr ${day}`, day, month: 'Apr', weekday: WEEKDAYS[i], inMonth: true }
-    }
+    const dt      = new Date(y, m - 1, d + (i - wIdx))
+    const inMonth = dt.getMonth() === (m - 1) && dt.getFullYear() === y
     return {
-      key: null,
-      day: day < 1 ? 31 + day : day - 30,
-      month: day < 1 ? 'Mar' : 'May',
-      weekday: WEEKDAYS[i],
-      inMonth: false,
+      key:     makeKey(dt.getFullYear(), dt.getMonth(), dt.getDate()),
+      day:     dt.getDate(),
+      month:   MONTH_SHORT[dt.getMonth()],
+      weekday: WEEKDAYS[dt.getDay()],
+      inMonth,
     }
   })
 }
@@ -212,6 +239,148 @@ function AddEntryForm({ onAdd }) {
   )
 }
 
+/* ─── New Collection Form (sidebar) ─────────────────────────── */
+
+function NewCollectionForm({ onAdd, onCancel }) {
+  const [name, setName] = useState('')
+  const [icon, setIcon] = useState('◎')
+  const nameRef = useRef(null)
+
+  useEffect(() => { nameRef.current?.focus() }, [])
+
+  const submit = (e) => {
+    e.preventDefault()
+    if (!name.trim()) return
+    onAdd(name.trim(), icon.trim() || '◎')
+  }
+
+  return (
+    <form className="new-collection-form" onSubmit={submit}>
+      <input
+        type="text"
+        className="new-collection-icon-input"
+        value={icon}
+        onChange={e => setIcon(e.target.value)}
+        maxLength={2}
+        placeholder="◎"
+      />
+      <input
+        ref={nameRef}
+        type="text"
+        className="new-collection-name-input"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        placeholder="Collection name"
+      />
+      <div className="new-collection-btns">
+        <button type="submit" className="new-collection-save" disabled={!name.trim()}>✓</button>
+        <button type="button" className="new-collection-cancel" onClick={onCancel}>✕</button>
+      </div>
+    </form>
+  )
+}
+
+/* ─── Collection View ────────────────────────────────────────── */
+
+function CollectionView({ collection, onAddItem, onToggleItem, onDeleteItem, onDeleteCollection }) {
+  const [text, setText] = useState('')
+  const inputRef = useRef(null)
+
+  const items = collection.items
+  const total = items.length
+  const done  = items.filter(i => i.done).length
+  const pct   = total > 0 ? Math.round((done / total) * 100) : 0
+
+  const submit = (e) => {
+    e.preventDefault()
+    if (!text.trim()) return
+    onAddItem(collection.id, text.trim())
+    setText('')
+    inputRef.current?.focus()
+  }
+
+  return (
+    <div className="collection-view-wrapper">
+      <div className="journal-header">
+        <div className="journal-header-eyebrow">Collection</div>
+        <div className="journal-date-title" style={{ fontSize: 42 }}>
+          <span style={{ fontSize: 36, lineHeight: 1 }}>{collection.icon}</span>
+          {collection.name}
+          <button
+            className="collection-delete-btn"
+            onClick={() => onDeleteCollection(collection.id)}
+            title="Delete collection"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="journal-progress">
+          <div className="journal-progress-bar-bg">
+            <div className="journal-progress-bar" style={{ width: `${pct}%` }} />
+          </div>
+          <span className="journal-progress-label">
+            {total === 0 ? 'No items yet' : `${done} of ${total} done`}
+          </span>
+        </div>
+      </div>
+
+      <div className="journal-entries">
+        {items.length === 0 ? (
+          <div className="journal-entries-empty animate-fade-in">
+            <span className="journal-entries-empty-symbol">◌</span>
+            <span className="journal-entries-empty-text">No items — add one below</span>
+          </div>
+        ) : (
+          items.map((item, i) => (
+            <div key={item.id} className="entry-item" style={{ animationDelay: `${i * 40}ms` }}>
+              <span
+                className="entry-bullet type-task"
+                onClick={() => onToggleItem(item.id, item.done, collection.id)}
+                style={{ opacity: item.done ? 0.45 : 1 }}
+              >
+                {item.done ? '✕' : '•'}
+              </span>
+              <span className={`entry-text${item.done ? ' done' : ''}`}>{item.text}</span>
+              <div className="entry-actions">
+                <button
+                  className="entry-action-btn"
+                  onClick={() => onToggleItem(item.id, item.done, collection.id)}
+                  title={item.done ? 'Reopen' : 'Complete'}
+                >
+                  {item.done ? '↩' : '✓'}
+                </button>
+                <button
+                  className="entry-action-btn"
+                  onClick={() => onDeleteItem(item.id, collection.id)}
+                  title="Delete"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <form className="journal-add-form" onSubmit={submit}>
+        <div className="add-form-row">
+          <span className="entry-bullet type-task" style={{ margin: 0, cursor: 'default', fontSize: 13 }}>•</span>
+          <input
+            ref={inputRef}
+            className="add-form-input"
+            type="text"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="Add item…"
+            autoComplete="off"
+          />
+          <button className="add-form-submit" type="submit" disabled={!text.trim()}>Add</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 /* ─── Weekly View ────────────────────────────────────────────── */
 
 function WeeklyView({ weekDays, entries, onToggle, onDelete, onSelectDate, setView }) {
@@ -271,7 +440,7 @@ function WeeklyView({ weekDays, entries, onToggle, onDelete, onSelectDate, setVi
 
 /* ─── Monthly View ───────────────────────────────────────────── */
 
-function MonthlyView({ entries, onSelectDate, setView }) {
+function MonthlyView({ entries, monthCells, onSelectDate, setView }) {
   return (
     <div className="monthly-view">
       <div className="month-weekday-row">
@@ -280,7 +449,7 @@ function MonthlyView({ entries, onSelectDate, setView }) {
         ))}
       </div>
       <div className="month-grid">
-        {MONTH_CELLS.map((cell, i) => {
+        {monthCells.map((cell, i) => {
           if (!cell) return <div key={i} className="month-cell empty" />
           const dayEntries = entries[cell.key] || []
           const isToday = cell.key === TODAY
@@ -315,11 +484,20 @@ export default function BulletJournal({ logs, collections }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
-  const [entries, setEntries]           = useState(() => logsToEntries(logs))
-  const [selectedDate, setSelectedDate] = useState(TODAY)
-  const [entriesKey, setEntriesKey]     = useState(0)
-  const [isDark, setIsDark]             = useState(false)
-  const [view, setView]                 = useState('daily')
+  const [entries, setEntries]                   = useState(() => logsToEntries(logs))
+  const [selectedDate, setSelectedDate]         = useState(TODAY)
+  const [entriesKey, setEntriesKey]             = useState(0)
+  const [isDark, setIsDark]                     = useState(false)
+  const [view, setView]                         = useState('daily')
+  const [activeCollection, setActiveCollection]   = useState(null)
+  const [newCollectionOpen, setNewCollectionOpen] = useState(false)
+  const [viewMonth, setViewMonth] = useState({ year: _now.getFullYear(), month: _now.getMonth() })
+  const [collectionsState, setCollectionsState] = useState(() =>
+    collections.map(c => ({
+      id: c.id, icon: c.icon, name: c.name,
+      items: (c.items || []).map(i => ({ id: i.id, text: i.text, done: i.done })),
+    }))
+  )
 
   useEffect(() => {
     setIsDark(document.documentElement.getAttribute('data-theme') === 'dark')
@@ -341,18 +519,18 @@ export default function BulletJournal({ logs, collections }) {
     setEntries(logsToEntries(logs))
   }, [logs])
 
+  useEffect(() => {
+    setCollectionsState(collections.map(c => ({
+      id: c.id, icon: c.icon, name: c.name,
+      items: (c.items || []).map(i => ({ id: i.id, text: i.text, done: i.done })),
+    })))
+  }, [collections])
+
   const currentEntries = entries[selectedDate] || []
   const { total, done } = getTaskProgress(currentEntries)
   const progressPct = total > 0 ? Math.round((done / total) * 100) : 0
 
-  const collectionsData = collections.map(c => ({
-    id: c.id,
-    icon: c.icon,
-    name: c.name,
-    count: c._count.items,
-  }))
-
-  const selectDate = useCallback((key) => {
+const selectDate = useCallback((key) => {
     setSelectedDate(key)
     setEntriesKey(k => k + 1)
   }, [])
@@ -384,6 +562,60 @@ export default function BulletJournal({ logs, collections }) {
     })
   }, [selectedDate, router])
 
+  const handleCreateCollection = useCallback((name, icon) => {
+    const tempId = `temp-${Date.now()}`
+    setCollectionsState(prev => [...prev, { id: tempId, name, icon, items: [] }])
+    setActiveCollection(tempId)
+    startTransition(async () => {
+      await createCollection(name, icon)
+      router.refresh()
+    })
+  }, [router])
+
+  const handleDeleteCollection = useCallback((id) => {
+    setCollectionsState(prev => prev.filter(c => c.id !== id))
+    setActiveCollection(null)
+    startTransition(async () => {
+      await deleteCollection(id)
+      router.refresh()
+    })
+  }, [router])
+
+  const handleAddItem = useCallback((collectionId, text) => {
+    const tempItem = { id: `temp-${Date.now()}`, text, done: false }
+    setCollectionsState(prev => prev.map(c =>
+      c.id === collectionId ? { ...c, items: [...c.items, tempItem] } : c
+    ))
+    startTransition(async () => {
+      await addCollectionItem(collectionId, text)
+      router.refresh()
+    })
+  }, [router])
+
+  const handleToggleItem = useCallback((itemId, currentDone, collectionId) => {
+    setCollectionsState(prev => prev.map(c =>
+      c.id === collectionId
+        ? { ...c, items: c.items.map(i => i.id === itemId ? { ...i, done: !i.done } : i) }
+        : c
+    ))
+    startTransition(async () => {
+      await toggleCollectionItem(itemId, !currentDone)
+      router.refresh()
+    })
+  }, [router])
+
+  const handleDeleteItem = useCallback((itemId, collectionId) => {
+    setCollectionsState(prev => prev.map(c =>
+      c.id === collectionId
+        ? { ...c, items: c.items.filter(i => i.id !== itemId) }
+        : c
+    ))
+    startTransition(async () => {
+      await deleteCollectionItem(itemId)
+      router.refresh()
+    })
+  }, [router])
+
   const handleAdd = useCallback(({ type, text }) => {
     const tempEntry = { id: `temp-${Date.now()}`, type, text, done: false }
     setEntries(prev => ({
@@ -396,10 +628,20 @@ export default function BulletJournal({ logs, collections }) {
     })
   }, [selectedDate, router])
 
-  const currentDateInfo = DATES.find(d => d.key === selectedDate)
-  const weekDays = getWeekDays(selectedDate)
+  const currentDateInfo = parseKey(selectedDate)
+  const weekDays  = getWeekDays(selectedDate)
   const weekStart = weekDays[0]
-  const weekEnd = weekDays[6]
+  const weekEnd   = weekDays[6]
+  const monthCells = buildMonthCells(viewMonth.year, viewMonth.month)
+
+  const prevMonth = () => setViewMonth(({ year, month }) => {
+    const d = new Date(year, month - 1, 1)
+    return { year: d.getFullYear(), month: d.getMonth() }
+  })
+  const nextMonth = () => setViewMonth(({ year, month }) => {
+    const d = new Date(year, month + 1, 1)
+    return { year: d.getFullYear(), month: d.getMonth() }
+  })
 
   return (
     <div className="journal-shell">
@@ -414,16 +656,36 @@ export default function BulletJournal({ logs, collections }) {
           </div>
         </div>
 
-        <div className="sidebar-section">
-          <div className="sidebar-section-label">Collections</div>
-        </div>
-        {collectionsData.map(c => (
-          <div key={c.id} className="sidebar-collection-item">
-            <span className="sidebar-collection-icon">{c.icon}</span>
-            <span className="sidebar-collection-name">{c.name}</span>
-            <span className="sidebar-collection-count">{c.count}</span>
+        <div className="sidebar-collections-section">
+          <div className="sidebar-collections-header">
+            <span className="sidebar-collections-label">Collections</span>
+            <button
+              className="sidebar-add-btn"
+              onClick={() => setNewCollectionOpen(o => !o)}
+              title="New collection"
+            >+</button>
           </div>
-        ))}
+          {newCollectionOpen && (
+            <NewCollectionForm
+              onAdd={(name, icon) => {
+                handleCreateCollection(name, icon)
+                setNewCollectionOpen(false)
+              }}
+              onCancel={() => setNewCollectionOpen(false)}
+            />
+          )}
+          {collectionsState.map(c => (
+            <div
+              key={c.id}
+              className={`sidebar-collection-item${activeCollection === c.id ? ' active' : ''}`}
+              onClick={() => setActiveCollection(c.id)}
+            >
+              <span className="sidebar-collection-icon">{c.icon}</span>
+              <span className="sidebar-collection-name">{c.name}</span>
+              <span className="sidebar-collection-count">{c.items.length}</span>
+            </div>
+          ))}
+        </div>
 
         <button className="theme-toggle" onClick={toggleTheme}>
           <span className="theme-toggle-icon">{isDark ? '○' : '●'}</span>
@@ -443,24 +705,28 @@ export default function BulletJournal({ logs, collections }) {
             {['daily', 'weekly', 'monthly'].map(v => (
               <button
                 key={v}
-                className={`view-tab${view === v ? ' active' : ''}`}
-                onClick={() => setView(v)}
+                className={`view-tab${view === v && !activeCollection ? ' active' : ''}`}
+                onClick={() => { setView(v); setActiveCollection(null) }}
               >
                 {v.charAt(0).toUpperCase() + v.slice(1)}
               </button>
             ))}
           </div>
 
-          {view === 'daily' && (
+          {!activeCollection && view === 'daily' && (
             <>
               <div className="journal-header-eyebrow">
-                {currentDateInfo?.weekday} · {currentDateInfo?.month} 2026
+                {currentDateInfo.weekday} · {currentDateInfo.month} {currentDateInfo.year}
               </div>
-              <div className="journal-date-title">
-                {currentDateInfo?.month} {currentDateInfo?.day}
-                {selectedDate === TODAY && (
-                  <span className="journal-today-badge">today</span>
-                )}
+              <div className="journal-nav-row">
+                <button className="nav-btn" onClick={() => selectDate(offsetDate(selectedDate, -1))}>←</button>
+                <div className="journal-date-title">
+                  {currentDateInfo.month} {currentDateInfo.day}
+                  {selectedDate === TODAY && (
+                    <span className="journal-today-badge">today</span>
+                  )}
+                </div>
+                <button className="nav-btn" onClick={() => selectDate(offsetDate(selectedDate, 1))}>→</button>
               </div>
               <div className="journal-progress">
                 <div className="journal-progress-bar-bg">
@@ -475,28 +741,50 @@ export default function BulletJournal({ logs, collections }) {
             </>
           )}
 
-          {view === 'weekly' && (
+          {!activeCollection && view === 'weekly' && (
             <>
-              <div className="journal-header-eyebrow">Week · Apr 2026</div>
-              <div className="journal-date-title" style={{ fontSize: 36 }}>
-                {weekStart.inMonth ? `Apr ${weekStart.day}` : `${weekStart.month} ${weekStart.day}`}
-                <span style={{ fontSize: 24, opacity: 0.45, margin: '0 10px' }}>–</span>
-                {weekEnd.inMonth ? `Apr ${weekEnd.day}` : `${weekEnd.month} ${weekEnd.day}`}
+              <div className="journal-header-eyebrow">Week · {parseKey(selectedDate).month} {parseKey(selectedDate).year}</div>
+              <div className="journal-nav-row">
+                <button className="nav-btn" onClick={() => selectDate(offsetDate(selectedDate, -7))}>←</button>
+                <div className="journal-date-title" style={{ fontSize: 36 }}>
+                  {weekStart.month} {weekStart.day}
+                  <span style={{ fontSize: 24, opacity: 0.45, margin: '0 10px' }}>–</span>
+                  {weekEnd.month} {weekEnd.day}
+                </div>
+                <button className="nav-btn" onClick={() => selectDate(offsetDate(selectedDate, 7))}>→</button>
               </div>
             </>
           )}
 
-          {view === 'monthly' && (
+          {!activeCollection && view === 'monthly' && (
             <>
-              <div className="journal-header-eyebrow">2026</div>
-              <div className="journal-date-title">April</div>
+              <div className="journal-header-eyebrow">{viewMonth.year}</div>
+              <div className="journal-nav-row">
+                <button className="nav-btn" onClick={prevMonth}>←</button>
+                <div className="journal-date-title">{MONTH_LONG[viewMonth.month]}</div>
+                <button className="nav-btn" onClick={nextMonth}>→</button>
+              </div>
             </>
           )}
 
         </div>
 
+        {/* Collection view */}
+        {activeCollection && (() => {
+          const col = collectionsState.find(c => c.id === activeCollection)
+          return col ? (
+            <CollectionView
+              collection={col}
+              onAddItem={handleAddItem}
+              onToggleItem={handleToggleItem}
+              onDeleteItem={handleDeleteItem}
+              onDeleteCollection={handleDeleteCollection}
+            />
+          ) : null
+        })()}
+
         {/* Legend — daily only */}
-        {view === 'daily' && (
+        {!activeCollection && view === 'daily' && (
           <div className="bullet-legend">
             {Object.entries(BULLET_TYPES).map(([key, cfg]) => (
               <span key={key} className="bullet-legend-item">
@@ -513,7 +801,7 @@ export default function BulletJournal({ logs, collections }) {
         )}
 
         {/* Content */}
-        {view === 'daily' && (
+        {!activeCollection && view === 'daily' && (
           <>
             <div className="journal-entries" key={entriesKey}>
               {currentEntries.length === 0 ? (
@@ -539,7 +827,7 @@ export default function BulletJournal({ logs, collections }) {
           </>
         )}
 
-        {view === 'weekly' && (
+        {!activeCollection && view === 'weekly' && (
           <WeeklyView
             weekDays={weekDays}
             entries={entries}
@@ -550,9 +838,10 @@ export default function BulletJournal({ logs, collections }) {
           />
         )}
 
-        {view === 'monthly' && (
+        {!activeCollection && view === 'monthly' && (
           <MonthlyView
             entries={entries}
+            monthCells={monthCells}
             onSelectDate={selectDate}
             setView={setView}
           />

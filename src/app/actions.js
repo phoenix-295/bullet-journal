@@ -3,8 +3,8 @@
 import { prisma } from '@/lib/prisma'
 
 function keyToDate(key) {
-  // "Apr 18" -> UTC midnight Date for 2026
-  return new Date(`${key} 2026 UTC`)
+  // "YYYY-MM-DD" -> UTC midnight Date
+  return new Date(`${key}T00:00:00.000Z`)
 }
 
 async function getOrCreateLog(dateStr) {
@@ -33,4 +33,33 @@ export async function toggleEntry(entryId, done) {
 
 export async function deleteEntry(entryId) {
   await prisma.entry.delete({ where: { id: entryId } })
+}
+
+export async function createCollection(name, icon) {
+  const count = await prisma.collection.count()
+  return prisma.collection.create({
+    data: { name, icon, order: count },
+  })
+}
+
+export async function deleteCollection(id) {
+  await prisma.collection.delete({ where: { id } })
+}
+
+export async function addCollectionItem(collectionId, text) {
+  const count = await prisma.collectionItem.count({ where: { collectionId } })
+  return prisma.collectionItem.create({
+    data: { text, collectionId, order: count },
+  })
+}
+
+export async function toggleCollectionItem(itemId, done) {
+  await prisma.collectionItem.update({
+    where: { id: itemId },
+    data: { done },
+  })
+}
+
+export async function deleteCollectionItem(itemId) {
+  await prisma.collectionItem.delete({ where: { id: itemId } })
 }

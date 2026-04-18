@@ -8,7 +8,10 @@ export default async function Page() {
       orderBy: { date: 'desc' },
     }),
     prisma.collection.findMany({
-      include: { _count: { select: { items: true } } },
+      include: {
+        items: { orderBy: { order: 'asc' } },
+        _count: { select: { items: true } },
+      },
       orderBy: { order: 'asc' },
     }),
   ])
