@@ -59,3 +59,13 @@ model CollectionItem {
   collectionId String
   collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 }
+
+model DailyMeals {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  breakfast String   @default("")
+  lunch     String   @default("")
+  snack     String   @default("")
+  dinner    String   @default("")
+  updatedAt DateTime @updatedAt
+}

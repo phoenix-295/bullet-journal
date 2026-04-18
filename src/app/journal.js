@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback, useTransition } from 'react'
+import { useState, useRef, useEffect, useCallback, useTransition, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  addEntry, toggleEntry, deleteEntry,
+  addEntry, toggleEntry, deleteEntry, reorderEntries,
   createCollection, deleteCollection,
   addCollectionItem, toggleCollectionItem, deleteCollectionItem,
+  updateMeal,
 } from './actions'
+import { logout } from './auth-actions'
 
 /* ─── Config ─────────────────────────────────────────────────── */
 
@@ -112,14 +114,13 @@ function getWeekDays(dateKey) {
   const base = new Date(y, m - 1, d)
   const wIdx = base.getDay()
   return Array.from({ length: 7 }, (_, i) => {
-    const dt      = new Date(y, m - 1, d + (i - wIdx))
-    const inMonth = dt.getMonth() === (m - 1) && dt.getFullYear() === y
+    const dt = new Date(y, m - 1, d + (i - wIdx))
     return {
       key:     makeKey(dt.getFullYear(), dt.getMonth(), dt.getDate()),
       day:     dt.getDate(),
       month:   MONTH_SHORT[dt.getMonth()],
       weekday: WEEKDAYS[dt.getDay()],
-      inMonth,
+      inMonth: true,
     }
   })
 }
@@ -140,12 +141,19 @@ function BulletSymbol({ type, done, onClick }) {
   )
 }
 
-function EntryItem({ entry, onToggle, onDelete, animDelay }) {
+const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, animDelay, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver }) {
+  const canDrag = !!onDragStart
   return (
     <div
-      className="entry-item"
+      className={`entry-item${isDragOver ? ' drag-over' : ''}`}
       style={{ animationDelay: `${animDelay}ms` }}
+      draggable={canDrag}
+      onDragStart={onDragStart}
+      onDragOver={canDrag ? e => { e.preventDefault(); onDragOver() } : undefined}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
     >
+      {canDrag && <span className="drag-handle">⠿</span>}
       <BulletSymbol
         type={entry.type}
         done={entry.done}
@@ -172,7 +180,7 @@ function EntryItem({ entry, onToggle, onDelete, animDelay }) {
       </div>
     </div>
   )
-}
+})
 
 function AddEntryForm({ onAdd }) {
   const [text, setText]   = useState('')
@@ -236,6 +244,58 @@ function AddEntryForm({ onAdd }) {
       </div>
       <p className="add-form-hint">Press Enter to add · Ctrl+/ to focus</p>
     </form>
+  )
+}
+
+/* ─── Meals Section ──────────────────────────────────────────── */
+
+const MEALS = [
+  { key: 'breakfast', label: 'Breakfast' },
+  { key: 'lunch',     label: 'Lunch'     },
+  { key: 'snack',     label: 'Breakfast' },
+  { key: 'dinner',    label: 'Dinner'    },
+]
+
+function MealsSection({ dateKey, meals, onUpdate }) {
+  const [values, setValues] = useState({
+    breakfast: meals?.breakfast || '',
+    lunch:     meals?.lunch    || '',
+    snack:     meals?.snack    || '',
+    dinner:    meals?.dinner   || '',
+  })
+
+  useEffect(() => {
+    setValues({
+      breakfast: meals?.breakfast || '',
+      lunch:     meals?.lunch    || '',
+      snack:     meals?.snack    || '',
+      dinner:    meals?.dinner   || '',
+    })
+  }, [dateKey, meals])
+
+  const handleBlur = (meal) => {
+    onUpdate(meal, values[meal])
+  }
+
+  return (
+    <div className="meals-section">
+      <div className="meals-grid">
+        {MEALS.map(({ key, label }) => (
+          <div key={key} className="meal-row">
+            <label className="meal-label">{label}</label>
+            <input
+              className="meal-input"
+              type="text"
+              value={values[key]}
+              placeholder={`What did you have?`}
+              onChange={e => setValues(v => ({ ...v, [key]: e.target.value }))}
+              onBlur={() => handleBlur(key)}
+              onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -383,11 +443,12 @@ function CollectionView({ collection, onAddItem, onToggleItem, onDeleteItem, onD
 
 /* ─── Weekly View ────────────────────────────────────────────── */
 
-function WeeklyView({ weekDays, entries, onToggle, onDelete, onSelectDate, setView }) {
+function WeeklyView({ weekDays, entries, onToggle, onDelete, onSelectDate, setView, filterType, mealsMap, showMeals }) {
   return (
     <div className="weekly-view">
       {weekDays.map((d, i) => {
-        const dayEntries = d.inMonth ? (entries[d.key] || []) : []
+        const raw = d.inMonth ? (entries[d.key] || []) : []
+        const dayEntries = filterType ? raw.filter(e => e.type === filterType) : raw
         const isToday = d.key === TODAY
         return (
           <div key={i} className={`week-day-col${!d.inMonth ? ' out-of-month' : ''}`}>
@@ -423,6 +484,16 @@ function WeeklyView({ weekDays, entries, onToggle, onDelete, onSelectDate, setVi
                 ))
               )}
             </div>
+            {showMeals && mealsMap[d.key] && (
+              <div className="week-meals">
+                {MEALS.map(({ key, label }) => mealsMap[d.key][key] ? (
+                  <div key={key} className="week-meal-row">
+                    <span className="week-meal-label">{label.charAt(0)}</span>
+                    <span className="week-meal-text">{mealsMap[d.key][key]}</span>
+                  </div>
+                ) : null)}
+              </div>
+            )}
             {d.inMonth && (
               <button
                 className="week-go-daily-btn"
@@ -438,38 +509,111 @@ function WeeklyView({ weekDays, entries, onToggle, onDelete, onSelectDate, setVi
   )
 }
 
+/* ─── Yearly View ────────────────────────────────────────────── */
+
+function YearlyView({ entries, year, onSelectDate, setView, filterType, onSelectMonth }) {
+  const todayRowRef = useRef(null)
+
+  useEffect(() => {
+    todayRowRef.current?.scrollIntoView({ block: 'center' })
+  }, [year])
+
+  const months = Array.from({ length: 12 }, (_, m) => {
+    const daysInMonth = new Date(year, m + 1, 0).getDate()
+    const days = []
+    for (let d = 1; d <= daysInMonth; d++) {
+      const key = makeKey(year, m, d)
+      const raw = entries[key] || []
+      const dayEntries = filterType
+        ? raw.filter(e => e.type === filterType)
+        : raw.filter(e => e.type === 'event')
+      if (dayEntries.length > 0) {
+        const dt = new Date(year, m, d)
+        days.push({ key, day: d, weekday: WEEKDAYS[dt.getDay()], entries: dayEntries })
+      }
+    }
+    return { month: MONTH_LONG[m], days }
+  })
+
+  return (
+    <div className="yearly-view">
+      {months.map(({ month, days }, m) => (
+        <div key={month} className="yearly-month-section">
+          <div className="yearly-month-label" onClick={() => onSelectMonth(year, m)} style={{ cursor: 'pointer' }} title={`Open ${month}`}>
+            <span className="yearly-month-label-text">{month}</span>
+            <span className="yearly-month-label-line" />
+          </div>
+          {days.map(({ key, day, weekday, entries: dayEntries }) => {
+            const isToday = key === TODAY
+            const isSunday = weekday === 'Sun'
+            return (
+              <div
+                key={key}
+                ref={isToday ? todayRowRef : null}
+                className={`month-list-row${isToday ? ' is-today' : ''}${isSunday ? ' is-sunday' : ''}`}
+                onClick={() => { onSelectDate(key); setView('daily') }}
+              >
+                <span className="month-list-day">{day}</span>
+                <span className="month-list-weekday">{weekday.charAt(0)}</span>
+                <div className="month-list-entries">
+                  {dayEntries.map((e, j) => (
+                    <span key={j} className={`month-list-entry entry-bullet ${BULLET_TYPES[e.type].colorClass}`}>
+                      {BULLET_TYPES[e.type].symbol}
+                      <span className={`month-list-entry-text${e.done ? ' done' : ''}`}>{e.text}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /* ─── Monthly View ───────────────────────────────────────────── */
 
-function MonthlyView({ entries, monthCells, onSelectDate, setView }) {
+function MonthlyView({ entries, monthCells, onSelectDate, setView, filterType, mealsMap, showMeals }) {
+  const days = monthCells.filter(Boolean)
+  const todayRowRef = useRef(null)
+
+  useEffect(() => {
+    todayRowRef.current?.scrollIntoView({ block: 'center' })
+  }, [])
+
   return (
     <div className="monthly-view">
-      <div className="month-weekday-row">
-        {WEEKDAYS.map(w => (
-          <div key={w} className="month-weekday-label">{w}</div>
-        ))}
-      </div>
-      <div className="month-grid">
-        {monthCells.map((cell, i) => {
-          if (!cell) return <div key={i} className="month-cell empty" />
-          const dayEntries = entries[cell.key] || []
+      <div className="month-list">
+        {days.map((cell, i) => {
+          const raw = entries[cell.key] || []
+          const dayEntries = filterType ? raw.filter(e => e.type === filterType) : raw
           const isToday = cell.key === TODAY
+          const isSunday = cell.weekday === 'Sun'
           return (
             <div
               key={i}
-              className={`month-cell${isToday ? ' is-today' : ''}${dayEntries.length > 0 ? ' has-entries' : ''}`}
+              ref={isToday ? todayRowRef : null}
+              className={`month-list-row${isToday ? ' is-today' : ''}${isSunday ? ' is-sunday' : ''}`}
               onClick={() => { onSelectDate(cell.key); setView('daily') }}
             >
-              <span className="month-cell-day">{cell.day}</span>
-              {dayEntries.length > 0 && (
-                <div className="month-cell-dots">
-                  {dayEntries.slice(0, 4).map((e, j) => (
-                    <span key={j} className={`month-dot type-${e.type}`} />
-                  ))}
-                  {dayEntries.length > 4 && (
-                    <span className="month-cell-more">+{dayEntries.length - 4}</span>
-                  )}
-                </div>
-              )}
+              <span className="month-list-day">{cell.day}</span>
+              <span className="month-list-weekday">{cell.weekday.charAt(0)}</span>
+              <div className="month-list-entries">
+                {dayEntries.map((e, j) => (
+                  <span key={j} className={`month-list-entry entry-bullet ${BULLET_TYPES[e.type].colorClass}`}>
+                    {BULLET_TYPES[e.type].symbol}
+                    <span className={`month-list-entry-text${e.done ? ' done' : ''}`}>{e.text}</span>
+                  </span>
+                ))}
+                {showMeals && mealsMap[cell.key] && MEALS.map(({ key, label }) =>
+                  mealsMap[cell.key][key] ? (
+                    <span key={key} className="month-meal-pill">
+                      {label.charAt(0)} {mealsMap[cell.key][key]}
+                    </span>
+                  ) : null
+                )}
+              </div>
             </div>
           )
         })}
@@ -480,7 +624,17 @@ function MonthlyView({ entries, monthCells, onSelectDate, setView }) {
 
 /* ─── Main Page ──────────────────────────────────────────────── */
 
-export default function BulletJournal({ logs, collections }) {
+function mealsToMap(meals) {
+  const map = {}
+  for (const m of meals) {
+    const d = new Date(m.date)
+    const key = makeKey(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+    map[key] = { breakfast: m.breakfast, lunch: m.lunch, snack: m.snack, dinner: m.dinner }
+  }
+  return map
+}
+
+export default function BulletJournal({ logs, collections, meals }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -491,7 +645,15 @@ export default function BulletJournal({ logs, collections }) {
   const [view, setView]                         = useState('daily')
   const [activeCollection, setActiveCollection]   = useState(null)
   const [newCollectionOpen, setNewCollectionOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen]             = useState(false)
   const [viewMonth, setViewMonth] = useState({ year: _now.getFullYear(), month: _now.getMonth() })
+  const [filterType, setFilterType] = useState(null)
+  const [showMeals, setShowMeals] = useState(false)
+  const [mealsOpen, setMealsOpen] = useState(true)
+  const [mealsMap, setMealsMap] = useState(() => mealsToMap(meals))
+  const dragIndexRef = useRef(null)
+  const dragOverIndexRef = useRef(null)
+  const dragItemsRef = useRef(null)
   const [collectionsState, setCollectionsState] = useState(() =>
     collections.map(c => ({
       id: c.id, icon: c.icon, name: c.name,
@@ -526,7 +688,8 @@ export default function BulletJournal({ logs, collections }) {
     })))
   }, [collections])
 
-  const currentEntries = entries[selectedDate] || []
+  const allCurrentEntries = entries[selectedDate] || []
+  const currentEntries = filterType ? allCurrentEntries.filter(e => e.type === filterType) : allCurrentEntries
   const { total, done } = getTaskProgress(currentEntries)
   const progressPct = total > 0 ? Math.round((done / total) * 100) : 0
 
@@ -544,11 +707,8 @@ const selectDate = useCallback((key) => {
         e.id === id ? { ...e, done: !e.done } : e
       ),
     }))
-    startTransition(async () => {
-      await toggleEntry(id, !currentDone)
-      router.refresh()
-    })
-  }, [selectedDate, router])
+    startTransition(() => { toggleEntry(id, !currentDone) })
+  }, [selectedDate])
 
   const handleDelete = useCallback((id, dateKey) => {
     const key = dateKey ?? selectedDate
@@ -556,11 +716,8 @@ const selectDate = useCallback((key) => {
       ...prev,
       [key]: (prev[key] || []).filter(e => e.id !== id),
     }))
-    startTransition(async () => {
-      await deleteEntry(id)
-      router.refresh()
-    })
-  }, [selectedDate, router])
+    startTransition(() => { deleteEntry(id) })
+  }, [selectedDate])
 
   const handleCreateCollection = useCallback((name, icon) => {
     const tempId = `temp-${Date.now()}`
@@ -575,11 +732,8 @@ const selectDate = useCallback((key) => {
   const handleDeleteCollection = useCallback((id) => {
     setCollectionsState(prev => prev.filter(c => c.id !== id))
     setActiveCollection(null)
-    startTransition(async () => {
-      await deleteCollection(id)
-      router.refresh()
-    })
-  }, [router])
+    startTransition(() => { deleteCollection(id) })
+  }, [])
 
   const handleAddItem = useCallback((collectionId, text) => {
     const tempItem = { id: `temp-${Date.now()}`, text, done: false }
@@ -598,11 +752,8 @@ const selectDate = useCallback((key) => {
         ? { ...c, items: c.items.map(i => i.id === itemId ? { ...i, done: !i.done } : i) }
         : c
     ))
-    startTransition(async () => {
-      await toggleCollectionItem(itemId, !currentDone)
-      router.refresh()
-    })
-  }, [router])
+    startTransition(() => { toggleCollectionItem(itemId, !currentDone) })
+  }, [])
 
   const handleDeleteItem = useCallback((itemId, collectionId) => {
     setCollectionsState(prev => prev.map(c =>
@@ -610,11 +761,32 @@ const selectDate = useCallback((key) => {
         ? { ...c, items: c.items.filter(i => i.id !== itemId) }
         : c
     ))
-    startTransition(async () => {
-      await deleteCollectionItem(itemId)
-      router.refresh()
+    startTransition(() => { deleteCollectionItem(itemId) })
+  }, [])
+
+  const handleReorder = useCallback((fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return
+    setEntries(prev => {
+      const list = [...(prev[selectedDate] || [])]
+      const [moved] = list.splice(fromIndex, 1)
+      list.splice(toIndex, 0, moved)
+      const orderedIds = list.map(e => e.id)
+      setTimeout(() => {
+        startTransition(() => { reorderEntries(orderedIds) })
+      }, 0)
+      return { ...prev, [selectedDate]: list }
     })
-  }, [router])
+  }, [selectedDate, router])
+
+  const handleUpdateMeal = useCallback((meal, text) => {
+    setMealsMap(prev => ({
+      ...prev,
+      [selectedDate]: { ...prev[selectedDate], [meal]: text },
+    }))
+    startTransition(async () => {
+      await updateMeal(selectedDate, meal, text)
+    })
+  }, [selectedDate])
 
   const handleAdd = useCallback(({ type, text }) => {
     const tempEntry = { id: `temp-${Date.now()}`, type, text, done: false }
@@ -642,12 +814,15 @@ const selectDate = useCallback((key) => {
     const d = new Date(year, month + 1, 1)
     return { year: d.getFullYear(), month: d.getMonth() }
   })
+  const prevYear = () => setViewMonth(({ year, month }) => ({ year: year - 1, month }))
+  const nextYear = () => setViewMonth(({ year, month }) => ({ year: year + 1, month }))
 
   return (
     <div className="journal-shell">
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
-      <aside className="journal-sidebar">
+      <div className={`sidebar-overlay${sidebarOpen ? ' visible' : ''}`} onClick={() => setSidebarOpen(false)} />
+      <aside className={`journal-sidebar${sidebarOpen ? ' open' : ''}`}>
 
         <div className="sidebar-brand animate-slide-in">
           <div className="sidebar-brand-eyebrow">My</div>
@@ -678,7 +853,7 @@ const selectDate = useCallback((key) => {
             <div
               key={c.id}
               className={`sidebar-collection-item${activeCollection === c.id ? ' active' : ''}`}
-              onClick={() => setActiveCollection(c.id)}
+              onClick={() => { setActiveCollection(c.id); setSidebarOpen(false) }}
             >
               <span className="sidebar-collection-icon">{c.icon}</span>
               <span className="sidebar-collection-name">{c.name}</span>
@@ -691,6 +866,9 @@ const selectDate = useCallback((key) => {
           <span className="theme-toggle-icon">{isDark ? '○' : '●'}</span>
           {isDark ? 'Light mode' : 'Dark mode'}
         </button>
+        <form action={logout}>
+          <button className="logout-btn" type="submit">⎋ Sign out</button>
+        </form>
 
       </aside>
 
@@ -702,7 +880,8 @@ const selectDate = useCallback((key) => {
 
           {/* View tabs */}
           <div className="view-tabs">
-            {['daily', 'weekly', 'monthly'].map(v => (
+            <button className="menu-btn" onClick={() => setSidebarOpen(o => !o)} title="Menu">☰</button>
+            {['daily', 'weekly', 'monthly', 'yearly'].map(v => (
               <button
                 key={v}
                 className={`view-tab${view === v && !activeCollection ? ' active' : ''}`}
@@ -727,6 +906,9 @@ const selectDate = useCallback((key) => {
                   )}
                 </div>
                 <button className="nav-btn" onClick={() => selectDate(offsetDate(selectedDate, 1))}>→</button>
+                {selectedDate !== TODAY && (
+                  <button className="today-btn" onClick={() => selectDate(TODAY)}>Today</button>
+                )}
               </div>
               <div className="journal-progress">
                 <div className="journal-progress-bar-bg">
@@ -752,6 +934,9 @@ const selectDate = useCallback((key) => {
                   {weekEnd.month} {weekEnd.day}
                 </div>
                 <button className="nav-btn" onClick={() => selectDate(offsetDate(selectedDate, 7))}>→</button>
+                {!weekDays.some(d => d.key === TODAY) && (
+                  <button className="today-btn" onClick={() => selectDate(TODAY)}>Today</button>
+                )}
               </div>
             </>
           )}
@@ -763,6 +948,23 @@ const selectDate = useCallback((key) => {
                 <button className="nav-btn" onClick={prevMonth}>←</button>
                 <div className="journal-date-title">{MONTH_LONG[viewMonth.month]}</div>
                 <button className="nav-btn" onClick={nextMonth}>→</button>
+                {(viewMonth.year !== _now.getFullYear() || viewMonth.month !== _now.getMonth()) && (
+                  <button className="today-btn" onClick={() => setViewMonth({ year: _now.getFullYear(), month: _now.getMonth() })}>Today</button>
+                )}
+              </div>
+            </>
+          )}
+
+          {!activeCollection && view === 'yearly' && (
+            <>
+              <div className="journal-header-eyebrow">Year</div>
+              <div className="journal-nav-row">
+                <button className="nav-btn" onClick={prevYear}>←</button>
+                <div className="journal-date-title">{viewMonth.year}</div>
+                <button className="nav-btn" onClick={nextYear}>→</button>
+                {viewMonth.year !== _now.getFullYear() && (
+                  <button className="today-btn" onClick={() => setViewMonth({ year: _now.getFullYear(), month: _now.getMonth() })}>Today</button>
+                )}
               </div>
             </>
           )}
@@ -783,20 +985,41 @@ const selectDate = useCallback((key) => {
           ) : null
         })()}
 
-        {/* Legend — daily only */}
-        {!activeCollection && view === 'daily' && (
+        {/* Filter bar — all views */}
+        {!activeCollection && (
           <div className="bullet-legend">
             {Object.entries(BULLET_TYPES).map(([key, cfg]) => (
-              <span key={key} className="bullet-legend-item">
-                <span className={`entry-bullet ${cfg.colorClass}`} style={{ width: 'auto', height: 'auto', cursor: 'default', fontSize: 13 }}>
+              <span
+                key={key}
+                className={`bullet-legend-item filter-btn${filterType === key ? ' filter-active' : ''}`}
+                onClick={() => setFilterType(f => f === key ? null : key)}
+                title={filterType === key ? 'Show all' : `Filter: ${cfg.label}`}
+              >
+                <span className={`entry-bullet ${cfg.colorClass}`} style={{ width: 'auto', height: 'auto', fontSize: 13 }}>
                   {cfg.symbol}
                 </span>
                 {cfg.label}
               </span>
             ))}
-            <span className="bullet-legend-item" style={{ marginLeft: 'auto' }}>
-              click bullet to complete
-            </span>
+            {filterType && (
+              <span className="bullet-legend-item filter-clear" onClick={() => setFilterType(null)}>
+                ✕ clear
+              </span>
+            )}
+            {view === 'daily' && !filterType && (
+              <span className="bullet-legend-item" style={{ marginLeft: 'auto' }}>
+                click bullet to complete
+              </span>
+            )}
+            {view !== 'daily' && (
+              <span
+                className={`bullet-legend-item filter-btn${showMeals ? ' filter-active' : ''}`}
+                style={{ marginLeft: filterType ? 0 : 'auto' }}
+                onClick={() => setShowMeals(s => !s)}
+              >
+                ⬡ Meals
+              </span>
+            )}
           </div>
         )}
 
@@ -819,6 +1042,30 @@ const selectDate = useCallback((key) => {
                     onToggle={handleToggle}
                     onDelete={handleDelete}
                     animDelay={i * 40}
+                    isDragOver={false}
+                    onDragStart={filterType ? null : (e) => {
+                      dragIndexRef.current = i
+                      dragItemsRef.current = e.currentTarget.closest('.journal-entries')
+                    }}
+                    onDragOver={filterType ? null : (e) => {
+                      if (dragOverIndexRef.current !== null && dragOverIndexRef.current !== i) {
+                        dragItemsRef.current?.children[dragOverIndexRef.current]?.classList.remove('drag-over')
+                      }
+                      dragOverIndexRef.current = i
+                      e.currentTarget.classList.add('drag-over')
+                    }}
+                    onDrop={filterType ? null : (e) => {
+                      e.currentTarget.classList.remove('drag-over')
+                      handleReorder(dragIndexRef.current, i)
+                      dragOverIndexRef.current = null
+                    }}
+                    onDragEnd={filterType ? null : () => {
+                      if (dragOverIndexRef.current !== null) {
+                        dragItemsRef.current?.children[dragOverIndexRef.current]?.classList.remove('drag-over')
+                      }
+                      dragIndexRef.current = null
+                      dragOverIndexRef.current = null
+                    }}
                   />
                 ))
               )}
@@ -835,6 +1082,9 @@ const selectDate = useCallback((key) => {
             onDelete={handleDelete}
             onSelectDate={selectDate}
             setView={setView}
+            filterType={filterType}
+            mealsMap={mealsMap}
+            showMeals={showMeals}
           />
         )}
 
@@ -844,10 +1094,43 @@ const selectDate = useCallback((key) => {
             monthCells={monthCells}
             onSelectDate={selectDate}
             setView={setView}
+            filterType={filterType}
+            mealsMap={mealsMap}
+            showMeals={showMeals}
+          />
+        )}
+
+        {!activeCollection && view === 'yearly' && (
+          <YearlyView
+            entries={entries}
+            year={viewMonth.year}
+            onSelectDate={selectDate}
+            setView={setView}
+            filterType={filterType}
+            onSelectMonth={(year, month) => { setViewMonth({ year, month }); setView('monthly') }}
           />
         )}
 
       </main>
+
+      {/* ── Right Panel (meals — daily only) ────────────────── */}
+      {!activeCollection && view === 'daily' && (
+        <div className={`journal-right-panel${mealsOpen ? '' : ' collapsed'}`}>
+          <div className="right-panel-toggle" onClick={() => setMealsOpen(o => !o)}>
+            <span className="right-panel-toggle-icon">⬡</span>
+            {mealsOpen && <span className="right-panel-toggle-label">Meals</span>}
+            <span className="right-panel-toggle-arrow">{mealsOpen ? '›' : '‹'}</span>
+          </div>
+          {mealsOpen && (
+            <MealsSection
+              dateKey={selectedDate}
+              meals={mealsMap[selectedDate]}
+              onUpdate={handleUpdateMeal}
+            />
+          )}
+        </div>
+      )}
+
     </div>
   )
 }

@@ -81,6 +81,128 @@
   line-height: 1;
 }
 
+/* ─── Login Page ────────────────────────────────────────────── */
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--parchment);
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  width: 320px;
+}
+
+.login-brand {
+  text-align: center;
+}
+
+.login-brand-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  margin-bottom: 4px;
+}
+
+.login-brand-title {
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  font-size: 42px;
+  font-weight: 300;
+  color: var(--ink);
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.login-brand-title span {
+  color: var(--sienna);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-input {
+  background: var(--parchment-alt);
+  border: 1px solid var(--parchment-border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--ink);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.login-input:focus {
+  border-color: var(--sienna);
+}
+
+.login-error {
+  font-size: 12px;
+  color: #c0392b;
+  text-align: center;
+}
+
+.login-submit {
+  background: var(--sienna);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.login-submit:hover {
+  opacity: 0.85;
+}
+
+.login-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ─── Logout button (sidebar) ───────────────────────────────── */
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--sidebar-border);
+  cursor: pointer;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  color: var(--sidebar-muted);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition: color 0.15s ease, background 0.15s ease;
+  width: 100%;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.logout-btn:hover {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
+}
+
 /* ─── Reset & Base ──────────────────────────────────────────── */
 *,
 *::before,
@@ -357,6 +479,67 @@ body {
   min-width: 0;
 }
 
+/* ─── Right Panel (meals) ───────────────────────────────────── */
+.journal-right-panel {
+  width: 220px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--parchment-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--parchment);
+  transition: width 0.2s ease;
+}
+
+.journal-right-panel.collapsed {
+  width: 36px;
+  overflow: hidden;
+}
+
+.right-panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 14px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--parchment-border);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.right-panel-toggle-icon {
+  font-size: 12px;
+  color: var(--muted);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.right-panel-toggle-label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  flex: 1;
+}
+
+.right-panel-toggle-arrow {
+  font-size: 14px;
+  color: var(--muted);
+  opacity: 0.5;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.right-panel-toggle:hover .right-panel-toggle-arrow,
+.right-panel-toggle:hover .right-panel-toggle-icon {
+  opacity: 0.9;
+}
+
+.meals-section {
+  padding: 16px 14px;
+}
+
 /* Header */
 .journal-header {
   padding: 32px 52px 24px;
@@ -475,6 +658,34 @@ body {
 
 .entry-item:hover {
   border-bottom-color: var(--parchment-alt);
+}
+
+.entry-item.drag-over {
+  border-top: 2px solid var(--sienna);
+}
+
+.entry-item[draggable="true"] {
+  cursor: grab;
+}
+
+.entry-item[draggable="true"]:active {
+  cursor: grabbing;
+  opacity: 0.5;
+}
+
+.drag-handle {
+  color: var(--muted);
+  font-size: 14px;
+  cursor: grab;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  line-height: 1;
+  margin-top: 4px;
+}
+
+.entry-item:hover .drag-handle {
+  opacity: 0.4;
 }
 
 .entry-bullet {
@@ -688,6 +899,53 @@ body {
   font-style: italic;
 }
 
+/* ─── Meals Section ─────────────────────────────────────────── */
+
+.meals-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.meal-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.meal-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  margin-bottom: 4px;
+}
+
+.meal-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--parchment-border);
+  padding: 4px 0 5px;
+  font-size: 13px;
+  color: var(--ink);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.meal-input:focus {
+  border-bottom-color: var(--sienna);
+}
+
+.meal-input::placeholder {
+  color: var(--muted);
+  opacity: 0.3;
+  font-size: 12px;
+}
+
 /* ─── Legend bar ────────────────────────────────────────────── */
 .bullet-legend {
   display: flex;
@@ -705,6 +963,38 @@ body {
   color: var(--muted);
   font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
   font-style: italic;
+}
+
+.filter-btn {
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+  user-select: none;
+}
+
+.filter-btn:hover {
+  background: var(--parchment-border);
+  color: var(--ink);
+}
+
+.filter-active {
+  background: var(--parchment-border);
+  color: var(--ink);
+  font-style: normal;
+  opacity: 1;
+}
+
+.filter-clear {
+  cursor: pointer;
+  color: var(--sienna);
+  margin-left: auto;
+  font-style: normal;
+  user-select: none;
+}
+
+.filter-clear:hover {
+  opacity: 0.7;
 }
 
 /* ─── View Tabs ─────────────────────────────────────────────── */
@@ -883,104 +1173,174 @@ body {
   background: var(--parchment-alt);
 }
 
+.week-meals {
+  border-top: 1px solid var(--parchment-border);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.week-meal-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 11px;
+}
+
+.week-meal-label {
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.week-meal-text {
+  color: var(--ink);
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.month-meal-pill {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+/* ─── Yearly View ───────────────────────────────────────────── */
+.yearly-view {
+  flex: 1;
+  overflow: auto;
+  padding: 0 40px 32px;
+}
+
+.yearly-month-section {
+  margin-bottom: 4px;
+}
+
+.yearly-month-label {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 12px 8px;
+}
+
+.yearly-month-label-text {
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  font-size: 28px;
+  font-weight: 300;
+  font-style: italic;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.yearly-month-label-line {
+  flex: 1;
+  height: 1px;
+  background: var(--parchment-border);
+}
+
 /* ─── Monthly View ──────────────────────────────────────────── */
 .monthly-view {
   flex: 1;
   overflow: auto;
-  padding: 24px 40px 32px;
+  padding: 0 40px 32px;
 }
 
-.month-weekday-row {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  margin-bottom: 6px;
-}
-
-.month-weekday-label {
-  text-align: center;
-  font-size: 9px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 4px;
-  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
-}
-
-.month-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  background: var(--parchment-border);
-  border: 1px solid var(--parchment-border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.month-cell {
-  background: var(--parchment);
-  min-height: 76px;
-  padding: 8px;
-  cursor: pointer;
-  transition: background 0.12s ease;
+.month-list {
   display: flex;
   flex-direction: column;
-  gap: 5px;
 }
 
-.month-cell:hover {
-  background: var(--parchment-alt);
-}
-
-.month-cell.empty {
-  background: var(--parchment-alt);
-  opacity: 0.4;
-  cursor: default;
-  min-height: 76px;
-}
-
-.month-cell-day {
-  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--ink);
-  width: 24px;
-  height: 24px;
+.month-list-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 50%;
+  gap: 14px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--parchment-border);
+  cursor: pointer;
+  transition: background 0.1s ease;
+  border-radius: 4px;
+}
+
+.month-list-row:hover {
+  background: var(--parchment-alt);
+}
+
+.month-list-row.is-today {
+  background: color-mix(in srgb, var(--sienna) 8%, transparent);
+}
+
+.month-list-day {
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  width: 28px;
+  text-align: right;
   flex-shrink: 0;
 }
 
-.month-cell.is-today .month-cell-day {
-  background: var(--sienna);
-  color: #fff;
+.month-list-row.is-today .month-list-day {
+  color: var(--sienna);
 }
 
-.month-cell-dots {
+.month-list-weekday {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.month-list-row.is-sunday .month-list-day,
+.month-list-row.is-sunday .month-list-weekday {
+  color: #c0392b;
+}
+
+.month-list-row.is-today.is-sunday .month-list-day {
+  color: #c0392b;
+}
+
+.month-list-entries {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
-  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
 
-.month-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
+.month-list-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  width: auto;
+  height: auto;
+  cursor: pointer;
   flex-shrink: 0;
 }
 
-.month-dot.type-task     { background: var(--ink); }
-.month-dot.type-event    { background: var(--blue); }
-.month-dot.type-note     { background: var(--slate); }
-.month-dot.type-priority { background: var(--sienna); }
+.month-list-entry-text {
+  font-size: 12px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
 
-.month-cell-more {
-  font-size: 9px;
-  color: var(--muted);
-  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+.month-list-entry-text.done {
+  text-decoration: line-through;
+  opacity: 0.45;
 }
 
 /* ─── Nav buttons (prev/next) ───────────────────────────────── */
@@ -1014,6 +1374,30 @@ body {
 }
 
 .nav-btn:hover {
+  background: var(--parchment-alt);
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+
+.today-btn {
+  background: transparent;
+  border: 1px solid var(--parchment-border);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 10px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+  font-family: inherit;
+  margin-left: 6px;
+}
+
+.today-btn:hover {
   background: var(--parchment-alt);
   color: var(--ink);
   border-color: var(--ink-soft);
@@ -1180,6 +1564,149 @@ body {
 .collection-delete-btn:hover {
   background: var(--parchment-alt);
   color: var(--sienna);
+}
+
+/* ─── Hamburger button ──────────────────────────────────────── */
+.menu-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.12s ease, background 0.12s ease;
+  margin-right: 4px;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.menu-btn:hover {
+  background: var(--parchment-alt);
+  color: var(--ink);
+}
+
+/* ─── Sidebar overlay (mobile) ──────────────────────────────── */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.sidebar-overlay.visible {
+  opacity: 1;
+  pointer-events: all;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .menu-btn {
+    display: flex;
+  }
+
+  .sidebar-overlay {
+    display: block;
+  }
+
+  .journal-sidebar {
+    position: fixed;
+    z-index: 100;
+    height: 100%;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+  }
+
+  .journal-sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+    pointer-events: auto;
+  }
+
+  .journal-header {
+    padding: 18px 20px 14px;
+  }
+
+  .journal-date-title {
+    font-size: 36px;
+  }
+
+  .journal-entries {
+    padding: 16px 20px 12px;
+  }
+
+  .journal-add-form {
+    padding: 12px 20px 20px;
+  }
+
+  .add-form-type-selector {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .add-form-hint {
+    display: none;
+  }
+
+  .bullet-legend {
+    padding: 8px 20px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .bullet-legend-item:last-child {
+    display: none;
+  }
+
+  .monthly-view {
+    padding: 0 10px 20px;
+  }
+
+  .month-list-day {
+    font-size: 15px;
+    width: 22px;
+  }
+
+  .month-list-entry-text {
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .journal-date-title {
+    font-size: 28px;
+    gap: 8px;
+  }
+
+  .view-tabs {
+    gap: 2px;
+  }
+
+  .view-tab {
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  .month-list-day {
+    font-size: 13px;
+    width: 18px;
+  }
+
+  .month-list-entry-text {
+    max-width: 80px;
+  }
+
+  .week-day-col {
+    min-width: 80px;
+  }
 }
 
 /* ─── Animations ────────────────────────────────────────────── */

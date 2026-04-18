@@ -1,6 +1,17 @@
 'use server'
 
+import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
+
+async function requireAuth() {
+  const cookieStore = await cookies()
+  const session = cookieStore.get('bj_session')?.value
+  if (session !== process.env.AUTH_SECRET) {
+    throw new Error('Unauthorized')
+  }
+}
+
+const VALID_MEALS = ['breakfast', 'lunch', 'snack', 'dinner']
 
 function keyToDate(key) {
   // "YYYY-MM-DD" -> UTC midnight Date
@@ -17,6 +28,7 @@ async function getOrCreateLog(dateStr) {
 }
 
 export async function addEntry(dateStr, type, text) {
+  await requireAuth()
   const log = await getOrCreateLog(dateStr)
   const count = await prisma.entry.count({ where: { dailyLogId: log.id } })
   await prisma.entry.create({
@@ -25,6 +37,7 @@ export async function addEntry(dateStr, type, text) {
 }
 
 export async function toggleEntry(entryId, done) {
+  await requireAuth()
   await prisma.entry.update({
     where: { id: entryId },
     data: { done },
@@ -32,10 +45,30 @@ export async function toggleEntry(entryId, done) {
 }
 
 export async function deleteEntry(entryId) {
+  await requireAuth()
   await prisma.entry.delete({ where: { id: entryId } })
 }
 
+export async function reorderEntries(orderedIds) {
+  await requireAuth()
+  await prisma.$transaction(
+    orderedIds.map((id, order) => prisma.entry.update({ where: { id }, data: { order } }))
+  )
+}
+
+export async function updateMeal(dateStr, meal, text) {
+  await requireAuth()
+  if (!VALID_MEALS.includes(meal)) throw new Error('Invalid meal field')
+  const date = keyToDate(dateStr)
+  await prisma.dailyMeals.upsert({
+    where: { date },
+    create: { date, [meal]: text },
+    update: { [meal]: text },
+  })
+}
+
 export async function createCollection(name, icon) {
+  await requireAuth()
   const count = await prisma.collection.count()
   return prisma.collection.create({
     data: { name, icon, order: count },
@@ -43,10 +76,12 @@ export async function createCollection(name, icon) {
 }
 
 export async function deleteCollection(id) {
+  await requireAuth()
   await prisma.collection.delete({ where: { id } })
 }
 
 export async function addCollectionItem(collectionId, text) {
+  await requireAuth()
   const count = await prisma.collectionItem.count({ where: { collectionId } })
   return prisma.collectionItem.create({
     data: { text, collectionId, order: count },
@@ -54,6 +89,7 @@ export async function addCollectionItem(collectionId, text) {
 }
 
 export async function toggleCollectionItem(itemId, done) {
+  await requireAuth()
   await prisma.collectionItem.update({
     where: { id: itemId },
     data: { done },
@@ -61,5 +97,6 @@ export async function toggleCollectionItem(itemId, done) {
 }
 
 export async function deleteCollectionItem(itemId) {
+  await requireAuth()
   await prisma.collectionItem.delete({ where: { id: itemId } })
 }
