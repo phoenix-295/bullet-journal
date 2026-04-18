@@ -655,6 +655,9 @@ export default function BulletJournal({ logs, collections, meals }) {
   const dragIndexRef = useRef(null)
   const dragOverIndexRef = useRef(null)
   const dragItemsRef = useRef(null)
+  const pullStartY = useRef(null)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [collectionsState, setCollectionsState] = useState(() =>
     collections.map(c => ({
       id: c.id, icon: c.icon, name: c.name,
@@ -688,6 +691,47 @@ export default function BulletJournal({ logs, collections, meals }) {
       items: (c.items || []).map(i => ({ id: i.id, text: i.text, done: i.done })),
     })))
   }, [collections])
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') router.refresh()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [router])
+
+  useEffect(() => {
+    const THRESHOLD = 80
+    const onTouchStart = (e) => {
+      if (window.scrollY === 0) pullStartY.current = e.touches[0].clientY
+    }
+    const onTouchMove = (e) => {
+      if (pullStartY.current === null) return
+      const dist = e.touches[0].clientY - pullStartY.current
+      if (dist > 0) {
+        e.preventDefault()
+        setPullDistance(Math.min(dist, THRESHOLD * 1.5))
+      }
+    }
+    const onTouchEnd = () => {
+      if (pullDistance >= THRESHOLD) {
+        setIsRefreshing(true)
+        router.refresh()
+        setTimeout(() => { setIsRefreshing(false); setPullDistance(0) }, 1000)
+      } else {
+        setPullDistance(0)
+      }
+      pullStartY.current = null
+    }
+    document.addEventListener('touchstart', onTouchStart, { passive: true })
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    document.addEventListener('touchend', onTouchEnd)
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart)
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [router, pullDistance])
 
   const allCurrentEntries = entries[selectedDate] || []
   const currentEntries = filterType ? allCurrentEntries.filter(e => e.type === filterType) : allCurrentEntries
@@ -851,6 +895,27 @@ const selectDate = useCallback((key) => {
 
   return (
     <div className="journal-shell">
+
+      {/* ── Pull-to-refresh indicator ───────────────────────── */}
+      {(pullDistance > 0 || isRefreshing) && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          height: `${Math.max(pullDistance, isRefreshing ? 48 : 0)}px`,
+          background: 'var(--bg, #fff)',
+          transition: isRefreshing ? 'none' : 'height 0.1s',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            width: 24, height: 24, borderRadius: '50%',
+            border: '2px solid var(--accent, #6c63ff)',
+            borderTopColor: 'transparent',
+            animation: isRefreshing ? 'spin 0.7s linear infinite' : 'none',
+            transform: isRefreshing ? 'none' : `rotate(${(pullDistance / 80) * 270}deg)`,
+            transition: isRefreshing ? 'none' : 'transform 0.05s',
+          }} />
+        </div>
+      )}
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <div className={`sidebar-overlay${sidebarOpen ? ' visible' : ''}`} onClick={() => setSidebarOpen(false)} />
