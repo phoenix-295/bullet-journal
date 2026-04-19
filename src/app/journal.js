@@ -212,27 +212,29 @@ const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, animDelay
       <BulletSymbol
         type={entry.type}
         done={entry.done}
-        onClick={() => onToggle(entry.id, entry.done)}
+        onClick={entry.type === 'task' || entry.type === 'priority' ? () => onToggle(entry.id, entry.done) : undefined}
       />
       <span className={`entry-text${entry.done ? ' done' : ''}`}>
         {entry.text}
       </span>
-      <div className="entry-actions">
-        <button
-          className="entry-action-btn"
-          onClick={() => onToggle(entry.id, entry.done)}
-          title={entry.done ? 'Reopen' : 'Complete'}
-        >
-          {entry.done ? '↩' : '✓'}
-        </button>
-        <button
-          className="entry-action-btn"
-          onClick={() => onDelete(entry.id)}
-          title="Delete"
-        >
-          ✕
-        </button>
-      </div>
+      {(entry.type === 'task' || entry.type === 'priority') && (
+        <div className="entry-actions">
+          <button
+            className="entry-action-btn"
+            onClick={() => onToggle(entry.id, entry.done)}
+            title={entry.done ? 'Reopen' : 'Complete'}
+          >
+            {entry.done ? '↩' : '✓'}
+          </button>
+          <button
+            className="entry-action-btn"
+            onClick={() => onDelete(entry.id)}
+            title="Delete"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   )
 })
@@ -579,7 +581,7 @@ function WeeklyView({ weekDays, entries, onToggle, onDelete, onSelectDate, setVi
                   >
                     <span className={`week-entry-bullet entry-bullet ${BULLET_TYPES[entry.type].colorClass}`}
                       style={{ opacity: entry.done ? 0.45 : 1, fontSize: 13, width: 'auto', height: 'auto', cursor: 'pointer', flexShrink: 0 }}
-                      onClick={() => onToggle(entry.id, entry.done, d.key)}
+                      onClick={entry.type === 'task' || entry.type === 'priority' ? () => onToggle(entry.id, entry.done, d.key) : undefined}
                     >
                       {entry.done && (entry.type === 'task' || entry.type === 'priority')
                         ? '✕'
@@ -756,6 +758,9 @@ export default function BulletJournal({ logs, collections, meals }) {
   const [sidebarOpen, setSidebarOpen]             = useState(false)
   const [viewMonth, setViewMonth] = useState({ year: _now.getFullYear(), month: _now.getMonth() })
   const [filterType, setFilterType] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchFilter, setSearchFilter] = useState(null)
+  const [searchViewOpen, setSearchViewOpen] = useState(false)
   const [showMeals, setShowMeals] = useState(false)
   const [mealsOpen, setMealsOpen] = useState(false)
   const [overdueOpen, setOverdueOpen] = useState(true)
@@ -944,7 +949,9 @@ const selectDate = useCallback((key) => {
   const weekStart = weekDays[0]
   const weekEnd   = weekDays[6]
   const monthCells = buildMonthCells(viewMonth.year, viewMonth.month)
-  const currentEntries = entries[selectedDate] || [];
+  const currentEntries = filterType 
+    ? (entries[selectedDate] || []).filter(e => e.type === filterType)
+    : entries[selectedDate] || [];
   const overdueEntries = useMemo(() => {
     const todayDate = new Date(TODAY);
     const result = Object.entries(entries)
@@ -961,6 +968,21 @@ const selectDate = useCallback((key) => {
   }, [entries]);
   const { total, done } = getTaskProgress(entries[selectedDate] || [])
   const progressPct = total ? Math.round((done / total) * 100) : 0
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return null
+    const query = searchQuery.toLowerCase()
+    const results = []
+    Object.entries(entries).forEach(([key, dayEntries]) => {
+      dayEntries.forEach(entry => {
+        if (searchFilter && entry.type !== searchFilter) return
+        if (entry.text.toLowerCase().includes(query)) {
+          results.push({ dateKey: key, ...entry })
+        }
+      })
+    })
+    return results.sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+  }, [entries, searchQuery, searchFilter])
 
   const prevMonth = () => setViewMonth(({ year, month }) => {
     const d = new Date(year, month - 1, 1)
@@ -1066,11 +1088,11 @@ const selectDate = useCallback((key) => {
           {/* View tabs */}
           <div className="view-tabs">
             <button className="menu-btn" onClick={() => setSidebarOpen(o => !o)} title="Menu">☰</button>
-            {['daily', 'weekly', 'monthly', 'yearly'].map(v => (
+            {['daily', 'weekly', 'monthly', 'yearly', 'search'].map(v => (
               <button
                 key={v}
                 className={`view-tab${view === v && !activeCollection ? ' active' : ''}`}
-                onClick={() => { setView(v); setActiveCollection(null) }}
+                onClick={() => { setView(v); setActiveCollection(null); setSearchViewOpen(v==='search'); if(v!=='search')setSearchQuery('') }}
               >
                 {v.charAt(0).toUpperCase() + v.slice(1)}
               </button>
@@ -1173,37 +1195,107 @@ const selectDate = useCallback((key) => {
         {/* Filter bar — all views */}
         {!activeCollection && (
           <div className="bullet-legend">
-            {Object.entries(BULLET_TYPES).map(([key, cfg]) => (
-              <span
-                key={key}
-                className={`bullet-legend-item filter-btn${filterType === key ? ' filter-active' : ''}`}
-                onClick={() => setFilterType(f => f === key ? null : key)}
-                title={filterType === key ? 'Show all' : `Filter: ${cfg.label}`}
-              >
-                <span className={`entry-bullet ${cfg.colorClass}`} style={{ width: 'auto', height: 'auto', fontSize: 13 }}>
-                  {cfg.symbol}
-                </span>
-                {cfg.label}
-              </span>
-            ))}
-            {filterType && (
-              <span className="bullet-legend-item filter-clear" onClick={() => setFilterType(null)}>
-                ✕ clear
-              </span>
+            {searchViewOpen ? (
+              <>
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder="Search entries…"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  autoFocus
+                />
+                {searchQuery && (
+                  <span className="bullet-legend-item filter-clear" onClick={() => setSearchQuery('')}>
+                    ✕ clear
+                  </span>
+                )}
+                {Object.entries(BULLET_TYPES).map(([key, cfg]) => (
+                  <span
+                    key={key}
+                    className={`bullet-legend-item filter-btn${searchFilter === key ? ' filter-active' : ''}`}
+                    onClick={() => setSearchFilter(f => f === key ? null : key)}
+                    title={searchFilter === key ? 'Remove filter' : `Search ${cfg.label}s`}
+                  >
+                    <span className={`entry-bullet ${cfg.colorClass}`} style={{ width: 'auto', height: 'auto', fontSize: 13 }}>
+                      {cfg.symbol}
+                    </span>
+                    {cfg.label}
+                  </span>
+                ))}
+              </>
+            ) : (
+              <>
+                {Object.entries(BULLET_TYPES).map(([key, cfg]) => (
+                  <span
+                    key={key}
+                    className={`bullet-legend-item filter-btn${filterType === key ? ' filter-active' : ''}`}
+                    onClick={() => setFilterType(f => f === key ? null : key)}
+                    title={filterType === key ? 'Show all' : `Filter: ${cfg.label}`}
+                  >
+                    <span className={`entry-bullet ${cfg.colorClass}`} style={{ width: 'auto', height: 'auto', fontSize: 13 }}>
+                      {cfg.symbol}
+                    </span>
+                    {cfg.label}
+                  </span>
+                ))}
+                {filterType && (
+                  <span className="bullet-legend-item filter-clear" onClick={() => setFilterType(null)}>
+                    ✕ clear
+                  </span>
+                )}
+                {view === 'daily' && !filterType && (
+                  <span className="bullet-legend-item" style={{ marginLeft: 'auto' }}>
+                    click bullet to complete
+                  </span>
+                )}
+                {(view === 'weekly' || view === 'monthly') && (
+                  <span
+                    className={`bullet-legend-item filter-btn${showMeals ? ' filter-active' : ''}`}
+                    style={{ marginLeft: filterType ? 0 : 'auto' }}
+                    onClick={() => setShowMeals(s => !s)}
+                  >
+                    ⬡ Meals
+                  </span>
+                )}
+              </>
             )}
-            {view === 'daily' && !filterType && (
-              <span className="bullet-legend-item" style={{ marginLeft: 'auto' }}>
-                click bullet to complete
-              </span>
-            )}
-            {(view === 'weekly' || view === 'monthly') && (
-              <span
-                className={`bullet-legend-item filter-btn${showMeals ? ' filter-active' : ''}`}
-                style={{ marginLeft: filterType ? 0 : 'auto' }}
-                onClick={() => setShowMeals(s => !s)}
-              >
-                ⬡ Meals
-              </span>
+          </div>
+        )}
+
+        {/* Search results view */}
+        {view === 'search' && searchResults && (
+          <div className="search-results">
+            <div className="search-results-header">
+              {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for &ldquo;{searchQuery}&rdquo;
+              {searchFilter && <span className="search-results-filter"> in {BULLET_TYPES[searchFilter].label}s</span>}
+            </div>
+            {searchResults.length === 0 ? (
+              <div className="journal-entries-empty">
+                <span className="journal-entries-empty-text">No matching entries found</span>
+              </div>
+            ) : (
+              <div className="search-results-list">
+                {searchResults.map((entry, i) => {
+                  const dateInfo = parseKey(entry.dateKey)
+                  return (
+                    <div
+                      key={entry.id}
+                      className="search-result-item entry-item"
+                      style={{ animationDelay: `${i * 30}ms` }}
+                      onClick={() => { selectDate(entry.dateKey); setView('daily') }}
+                    >
+                      <span className={`entry-bullet ${BULLET_TYPES[entry.type].colorClass}`}>
+                        {entry.done && (entry.type === 'task' || entry.type === 'priority') ? '✕' : BULLET_TYPES[entry.type].symbol}
+                      </span>
+                      <span className={`entry-text${entry.done ? ' done' : ''}`}>{entry.text}</span>
+                      <span className="search-result-date">
+                        {dateInfo.month} {dateInfo.day}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         )}
@@ -1280,7 +1372,7 @@ const selectDate = useCallback((key) => {
                 ))
               )}
             </div>
-            <AddEntryForm onAdd={handleAdd} />
+            {!searchQuery && <AddEntryForm onAdd={handleAdd} />}
           </>
         )}
 

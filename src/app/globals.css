@@ -1899,3 +1899,52 @@ body {
 .animate-fade-in {
   animation: fadeIn 0.5s ease both;
 }
+
+.search-input {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--parchment-border);
+  font-size: 13px;
+  width: 100px;
+  background: var(--parchment-alt);
+  color: var(--ink);
+}
+.search-input::placeholder {
+  color: var(--muted);
+}
+.search-input:focus {
+  outline: none;
+  border-color: var(--sienna);
+}
+.search-results {
+  padding: 16px;
+}
+.search-results-header {
+  font-size: 14px;
+  opacity: 0.7;
+  margin-bottom: 12px;
+}
+.search-results-filter {
+  color: var(--sienna);
+}
+.search-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+.search-result-item:hover {
+  background: var(--parchment-alt);
+}
+.search-result-date {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.5;
+}
