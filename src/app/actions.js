@@ -1,6 +1,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/prisma'
 
 async function requireAuth() {
@@ -34,6 +35,7 @@ export async function addEntry(dateStr, type, text, done = false) {
   await prisma.entry.create({
     data: { type, text, done, dailyLogId: log.id, order: count },
   })
+  revalidatePath('/')
 }
 
 export async function toggleEntry(entryId, done) {
@@ -70,9 +72,11 @@ export async function updateMeal(dateStr, meal, text) {
 export async function createCollection(name, icon) {
   await requireAuth()
   const count = await prisma.collection.count()
-  return prisma.collection.create({
+  const col = await prisma.collection.create({
     data: { name, icon, order: count },
   })
+  revalidatePath('/')
+  return col
 }
 
 export async function deleteCollection(id) {
@@ -83,9 +87,11 @@ export async function deleteCollection(id) {
 export async function addCollectionItem(collectionId, text) {
   await requireAuth()
   const count = await prisma.collectionItem.count({ where: { collectionId } })
-  return prisma.collectionItem.create({
+  const item = await prisma.collectionItem.create({
     data: { text, collectionId, order: count },
   })
+  revalidatePath('/')
+  return item
 }
 
 export async function toggleCollectionItem(itemId, done) {

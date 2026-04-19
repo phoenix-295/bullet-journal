@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import BulletJournal from './journal'
 
+export const dynamic = 'force-dynamic'
+
 const COMPLETED_DAYS = 90
 
 export default async function Page() {
