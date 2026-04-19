@@ -46,7 +46,7 @@ export async function toggleEntry(entryId, done) {
 
 export async function deleteEntry(entryId) {
   await requireAuth()
-  await prisma.entry.delete({ where: { id: entryId } })
+  await prisma.entry.deleteMany({ where: { id: entryId } })
 }
 
 export async function reorderEntries(orderedIds) {

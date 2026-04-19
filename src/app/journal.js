@@ -701,6 +701,13 @@ export default function BulletJournal({ logs, collections, meals }) {
   }, [router])
 
   useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') router.refresh()
+    }, 30_000)
+    return () => clearInterval(id)
+  }, [router])
+
+  useEffect(() => {
     const THRESHOLD = 80
     const onTouchStart = (e) => {
       if (window.scrollY === 0) pullStartY.current = e.touches[0].clientY
@@ -781,6 +788,7 @@ const selectDate = useCallback((key) => {
   }, [selectedDate])
 
   const handleOverdueComplete = useCallback((id, fromDateKey) => {
+    if (String(id).startsWith('temp-')) return
     const entry = (entries[fromDateKey] || []).find(e => e.id === id)
     if (!entry) return
     const migrated = { id: `temp-${Date.now()}`, type: entry.type, text: entry.text, done: true }
