@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useTransition, memo, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  addEntry, toggleEntry, deleteEntry, reorderEntries,
+  addEntry, toggleEntry, deleteEntry, reorderEntries, updateEntry,
   createCollection, deleteCollection,
   addCollectionItem, toggleCollectionItem, deleteCollectionItem,
   updateMeal,
@@ -141,8 +141,25 @@ function BulletSymbol({ type, done, onClick }) {
   )
 }
 
-const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, animDelay, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver, onTouchReorder }) {
+const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, onEdit, animDelay, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver, onTouchReorder }) {
   const canDrag = !!onDragStart
+  const [isEditing, setIsEditing] = useState(false)
+  const [editText, setEditText] = useState(entry.text)
+  const inputRef = useRef(null)
+
+  const handleSave = () => {
+    if (editText.trim() && editText.trim() !== entry.text) {
+      onEdit(entry.id, editText.trim())
+    }
+    setIsEditing(false)
+  }
+
+  useEffect(() => {
+    if (isEditing) {
+      inputRef.current?.focus()
+    }
+  }, [isEditing])
+
   const touchRef = useRef({})
 
   const handleTouchStart = canDrag ? (e) => {
@@ -214,9 +231,20 @@ const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, animDelay
         done={entry.done}
         onClick={entry.type === 'task' || entry.type === 'priority' ? () => onToggle(entry.id, entry.done) : undefined}
       />
-      <span className={`entry-text${entry.done ? ' done' : ''}`}>
-        {entry.text}
-      </span>
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          className="entry-edit-input"
+          value={editText}
+          onChange={e => setEditText(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setIsEditing(false) }}
+        />
+      ) : (
+        <span className={`entry-text${entry.done ? ' done' : ''}`} onDoubleClick={() => setIsEditing(true)}>
+          {entry.text}
+        </span>
+      )}
       {(entry.type === 'task' || entry.type === 'priority') && (
         <div className="entry-actions">
           <button
@@ -844,6 +872,17 @@ const selectDate = useCallback((key) => {
     startTransition(() => { deleteEntry(id) })
   }, [selectedDate])
 
+  const handleEdit = useCallback((id, text, dateKey) => {
+    const key = dateKey ?? selectedDate
+    setEntries(prev => ({
+      ...prev,
+      [key]: (prev[key] || []).map(e =>
+        e.id === id ? { ...e, text: text } : e
+      ),
+    }))
+    startTransition(() => { updateEntry(id, text) })
+  }, [selectedDate])
+
   const handleOverdueComplete = useCallback((id, fromDateKey) => {
     if (String(id).startsWith('temp-')) return
     const entry = (entries[fromDateKey] || []).find(e => e.id === id)
@@ -1322,6 +1361,7 @@ const selectDate = useCallback((key) => {
                         entry={entry}
                         onToggle={(id) => handleOverdueComplete(id, key)}
                         onDelete={(id) => handleDelete(id, key)}
+                        onEdit={handleEdit}
                         animDelay={i * 40}
                         isDragOver={false}
                       />
@@ -1345,6 +1385,7 @@ const selectDate = useCallback((key) => {
                     entry={entry}
                     onToggle={handleToggle}
                     onDelete={handleDelete}
+                    onEdit={handleEdit}
                     animDelay={i * 40}
                     isDragOver={false}
                     onDragStart={filterType ? null : () => {
