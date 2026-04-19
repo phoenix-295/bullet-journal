@@ -141,19 +141,74 @@ function BulletSymbol({ type, done, onClick }) {
   )
 }
 
-const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, animDelay, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver }) {
+const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, animDelay, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver, onTouchReorder }) {
   const canDrag = !!onDragStart
+  const touchRef = useRef({})
+
+  const handleTouchStart = canDrag ? (e) => {
+    e.preventDefault()
+    onDragStart()
+    const touch = e.touches[0]
+    const el = e.currentTarget.closest('.entry-item')
+    const rect = el.getBoundingClientRect()
+    const clone = el.cloneNode(true)
+    Object.assign(clone.style, {
+      position: 'fixed', top: rect.top + 'px', left: rect.left + 'px',
+      width: rect.width + 'px', opacity: '0.75', pointerEvents: 'none',
+      zIndex: '9999', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', borderRadius: '4px',
+    })
+    document.body.appendChild(clone)
+    touchRef.current = { startY: touch.clientY, rect, clone, targetEl: null }
+  } : undefined
+
+  const handleTouchMove = canDrag ? (e) => {
+    e.preventDefault()
+    const { clone, rect, startY } = touchRef.current
+    const touch = e.touches[0]
+    if (clone) clone.style.top = (rect.top + touch.clientY - startY) + 'px'
+    clone && (clone.style.visibility = 'hidden')
+    const el = document.elementFromPoint(touch.clientX, touch.clientY)
+    clone && (clone.style.visibility = '')
+    const targetEl = el?.closest('[data-entry-id]')
+    if (targetEl) {
+      if (touchRef.current.targetEl && touchRef.current.targetEl !== targetEl) {
+        touchRef.current.targetEl.classList.remove('drag-over')
+      }
+      targetEl.classList.add('drag-over')
+      touchRef.current.targetEl = targetEl
+    }
+  } : undefined
+
+  const handleTouchEnd = canDrag ? (e) => {
+    const { clone, targetEl } = touchRef.current
+    clone?.remove()
+    targetEl?.classList.remove('drag-over')
+    touchRef.current = {}
+    const touch = e.changedTouches[0]
+    const el = document.elementFromPoint(touch.clientX, touch.clientY)
+    const dropEl = el?.closest('[data-entry-id]')
+    const toId = dropEl?.dataset.entryId
+    if (toId) onTouchReorder?.(entry.id, toId)
+    onDragEnd?.()
+  } : undefined
+
   return (
     <div
       className={`entry-item${isDragOver ? ' drag-over' : ''}`}
       style={{ animationDelay: `${animDelay}ms` }}
+      data-entry-id={entry.id}
       draggable={canDrag}
       onDragStart={onDragStart}
-      onDragOver={canDrag ? e => { e.preventDefault(); onDragOver() } : undefined}
+      onDragOver={canDrag ? e => { e.preventDefault(); onDragOver(e) } : undefined}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
     >
-      {canDrag && <span className="drag-handle">⠿</span>}
+      {canDrag && <span
+        className="drag-handle"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >⠿</span>}
       <BulletSymbol
         type={entry.type}
         done={entry.done}
@@ -452,7 +507,10 @@ function WeeklyView({ weekDays, entries, onToggle, onDelete, onSelectDate, setVi
         const isToday = d.key === TODAY
         return (
           <div key={i} className={`week-day-col${!d.inMonth ? ' out-of-month' : ''}`}>
-            <div className={`week-day-header${isToday ? ' is-today' : ''}`}>
+            <div
+              className={`week-day-header${isToday ? ' is-today' : ''}${d.inMonth ? ' week-day-header-clickable' : ''}`}
+              onClick={d.inMonth ? () => { onSelectDate(d.key); setView('daily') } : undefined}
+            >
               <span className="week-day-name">{d.weekday}</span>
               <span className="week-day-num">{d.day}</span>
               <span className="week-day-month-label">{d.month}</span>
@@ -463,7 +521,7 @@ function WeeklyView({ weekDays, entries, onToggle, onDelete, onSelectDate, setVi
               ) : dayEntries.length === 0 ? (
                 <div className="week-empty">◌</div>
               ) : (
-                dayEntries.map(entry => (
+                [...dayEntries].sort((a, b) => (!!a.done === !!b.done ? 0 : !!a.done ? 1 : -1)).map(entry => (
                   <div
                     key={entry.id}
                     className="week-entry"
@@ -652,9 +710,8 @@ export default function BulletJournal({ logs, collections, meals }) {
   const [mealsOpen, setMealsOpen] = useState(false)
   const [overdueOpen, setOverdueOpen] = useState(true)
   const [mealsMap, setMealsMap] = useState(() => mealsToMap(meals))
-  const dragIndexRef = useRef(null)
-  const dragOverIndexRef = useRef(null)
-  const dragItemsRef = useRef(null)
+  const dragIdRef = useRef(null)
+  const dragOverElRef = useRef(null)
   const pullStartY = useRef(null)
   const [pullDistance, setPullDistance] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -848,10 +905,13 @@ const selectDate = useCallback((key) => {
     startTransition(() => { deleteCollectionItem(itemId) })
   }, [])
 
-  const handleReorder = useCallback((fromIndex, toIndex) => {
-    if (fromIndex === toIndex) return
+  const handleReorder = useCallback((fromId, toId) => {
+    if (fromId === toId) return
     setEntries(prev => {
       const list = [...(prev[selectedDate] || [])]
+      const fromIndex = list.findIndex(e => e.id === fromId)
+      const toIndex = list.findIndex(e => e.id === toId)
+      if (fromIndex === -1 || toIndex === -1) return prev
       const [moved] = list.splice(fromIndex, 1)
       list.splice(toIndex, 0, moved)
       const orderedIds = list.map(e => e.id)
@@ -860,7 +920,7 @@ const selectDate = useCallback((key) => {
       }, 0)
       return { ...prev, [selectedDate]: list }
     })
-  }, [selectedDate, router])
+  }, [selectedDate])
 
   const handleUpdateMeal = useCallback((meal, text) => {
     setMealsMap(prev => ({
@@ -1124,7 +1184,7 @@ const selectDate = useCallback((key) => {
                 click bullet to complete
               </span>
             )}
-            {view !== 'daily' && (
+            {(view === 'weekly' || view === 'monthly') && (
               <span
                 className={`bullet-legend-item filter-btn${showMeals ? ' filter-active' : ''}`}
                 style={{ marginLeft: filterType ? 0 : 'auto' }}
@@ -1175,7 +1235,7 @@ const selectDate = useCallback((key) => {
                   </span>
                 </div>
               ) : (
-                [...currentEntries].sort((a, b) => a.done - b.done).map((entry, i) => (
+                [...currentEntries].sort((a, b) => (!!a.done === !!b.done ? 0 : !!a.done ? 1 : -1)).map((entry, i) => (
                   <EntryItem
                     key={entry.id}
                     entry={entry}
@@ -1183,29 +1243,27 @@ const selectDate = useCallback((key) => {
                     onDelete={handleDelete}
                     animDelay={i * 40}
                     isDragOver={false}
-                    onDragStart={filterType ? null : (e) => {
-                      dragIndexRef.current = i
-                      dragItemsRef.current = e.currentTarget.closest('.journal-entries')
+                    onDragStart={filterType ? null : () => {
+                      dragIdRef.current = entry.id
                     }}
                     onDragOver={filterType ? null : (e) => {
-                      if (dragOverIndexRef.current !== null && dragOverIndexRef.current !== i) {
-                        dragItemsRef.current?.children[dragOverIndexRef.current]?.classList.remove('drag-over')
+                      if (dragOverElRef.current && dragOverElRef.current !== e.currentTarget) {
+                        dragOverElRef.current.classList.remove('drag-over')
                       }
-                      dragOverIndexRef.current = i
+                      dragOverElRef.current = e.currentTarget
                       e.currentTarget.classList.add('drag-over')
                     }}
                     onDrop={filterType ? null : (e) => {
                       e.currentTarget.classList.remove('drag-over')
-                      handleReorder(dragIndexRef.current, i)
-                      dragOverIndexRef.current = null
+                      handleReorder(dragIdRef.current, entry.id)
+                      dragOverElRef.current = null
                     }}
                     onDragEnd={filterType ? null : () => {
-                      if (dragOverIndexRef.current !== null) {
-                        dragItemsRef.current?.children[dragOverIndexRef.current]?.classList.remove('drag-over')
-                      }
-                      dragIndexRef.current = null
-                      dragOverIndexRef.current = null
+                      dragOverElRef.current?.classList.remove('drag-over')
+                      dragIdRef.current = null
+                      dragOverElRef.current = null
                     }}
+                    onTouchReorder={filterType ? null : (fromId, toId) => handleReorder(fromId, toId)}
                   />
                 ))
               )}

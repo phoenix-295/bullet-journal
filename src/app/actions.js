@@ -52,7 +52,7 @@ export async function deleteEntry(entryId) {
 export async function reorderEntries(orderedIds) {
   await requireAuth()
   await prisma.$transaction(
-    orderedIds.map((id, order) => prisma.entry.update({ where: { id }, data: { order } }))
+    orderedIds.map((id, order) => prisma.entry.updateMany({ where: { id }, data: { order } }))
   )
 }
 
