@@ -354,14 +354,64 @@ function MealsSection({ dateKey, meals, onUpdate }) {
   )
 }
 
+/* ─── Pull-to-refresh ───────────────────────────────────────── */
+
+const THRESHOLD = 80
+
+function usePullToRefresh(onRefresh) {
+  const containerRef = useRef(null)
+  const startY = useRef(null)
+  const dist = useRef(0)
+  const [pulling, setPulling] = useState(false)
+
+  const onTouchStart = useCallback((e) => {
+    const el = containerRef.current
+    if (!el || el.scrollTop > 0) return
+    startY.current = e.touches[0].clientY
+  }, [])
+
+  const onTouchMove = useCallback((e) => {
+    if (startY.current == null) return
+    const d = e.touches[0].clientY - startY.current
+    if (d > 0) {
+      e.preventDefault()
+      dist.current = d
+      setPulling(true)
+    }
+  }, [startY.current])
+
+  const onTouchEnd = useCallback(() => {
+    if (dist.current >= THRESHOLD) {
+      setPulling(false)
+      onRefresh()
+    }
+    startY.current = null
+    dist.current = 0
+    setPulling(false)
+  }, [onRefresh])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd)
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [onTouchStart, onTouchMove, onTouchEnd])
+
+  return { containerRef, pulling }
+}
+
 /* ─── New Collection Form (sidebar) ─────────────────────────── */
 
 function NewCollectionForm({ onAdd, onCancel }) {
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('◎')
   const nameRef = useRef(null)
-
-  useEffect(() => { nameRef.current?.focus() }, [])
 
   const submit = (e) => {
     e.preventDefault()
@@ -503,7 +553,7 @@ function WeeklyView({ weekDays, entries, onToggle, onDelete, onSelectDate, setVi
     <div className="weekly-view">
       {weekDays.map((d, i) => {
         const raw = d.inMonth ? (entries[d.key] || []) : []
-        const dayEntries = filterType ? raw.filter(e => e.type === filterType) : raw
+        const dayEntries = filterType ? raw.filter(e => e.type === filterType) : raw.filter(e => e.type === "note" || e.type === "event")
         const isToday = d.key === TODAY
         return (
           <div key={i} className={`week-day-col${!d.inMonth ? ' out-of-month' : ''}`}>
@@ -645,7 +695,7 @@ function MonthlyView({ entries, monthCells, onSelectDate, setView, filterType, m
       <div className="month-list">
         {days.map((cell, i) => {
           const raw = entries[cell.key] || []
-          const dayEntries = filterType ? raw.filter(e => e.type === filterType) : raw
+          const dayEntries = filterType ? raw.filter(e => e.type === filterType) : raw.filter(e => e.type === "note" || e.type === "event")
           const isToday = cell.key === TODAY
           const isSunday = cell.weekday === 'Sun'
           return (
@@ -712,7 +762,6 @@ export default function BulletJournal({ logs, collections, meals }) {
   const [mealsMap, setMealsMap] = useState(() => mealsToMap(meals))
   const dragIdRef = useRef(null)
   const dragOverElRef = useRef(null)
-  const pullStartY = useRef(null)
   const [pullDistance, setPullDistance] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [collectionsState, setCollectionsState] = useState(() =>
@@ -763,60 +812,6 @@ export default function BulletJournal({ logs, collections, meals }) {
     }, 30_000)
     return () => clearInterval(id)
   }, [router])
-
-  useEffect(() => {
-    const THRESHOLD = 80
-    const onTouchStart = (e) => {
-      if (window.scrollY === 0) pullStartY.current = e.touches[0].clientY
-    }
-    const onTouchMove = (e) => {
-      if (pullStartY.current === null) return
-      const dist = e.touches[0].clientY - pullStartY.current
-      if (dist > 0) {
-        e.preventDefault()
-        setPullDistance(Math.min(dist, THRESHOLD * 1.5))
-      }
-    }
-    const onTouchEnd = () => {
-      if (pullDistance >= THRESHOLD) {
-        setIsRefreshing(true)
-        router.refresh()
-        setTimeout(() => { setIsRefreshing(false); setPullDistance(0) }, 1000)
-      } else {
-        setPullDistance(0)
-      }
-      pullStartY.current = null
-    }
-    document.addEventListener('touchstart', onTouchStart, { passive: true })
-    document.addEventListener('touchmove', onTouchMove, { passive: false })
-    document.addEventListener('touchend', onTouchEnd)
-    return () => {
-      document.removeEventListener('touchstart', onTouchStart)
-      document.removeEventListener('touchmove', onTouchMove)
-      document.removeEventListener('touchend', onTouchEnd)
-    }
-  }, [router, pullDistance])
-
-  const allCurrentEntries = entries[selectedDate] || []
-  const currentEntries = filterType ? allCurrentEntries.filter(e => e.type === filterType) : allCurrentEntries
-  const { total, done } = getTaskProgress(currentEntries)
-
-  const overdueEntries = useMemo(() => {
-    const groups = []
-    for (const [key, dayEntries] of Object.entries(entries)) {
-      if (key >= selectedDate) continue
-      const incomplete = dayEntries.filter(e => !e.done && (e.type === 'task' || e.type === 'priority'))
-      if (incomplete.length === 0) continue
-      const [sy, sm, sd] = selectedDate.split('-').map(Number)
-      const [ky, km, kd] = key.split('-').map(Number)
-      const daysAgo = Math.round(
-        (new Date(sy, sm - 1, sd) - new Date(ky, km - 1, kd)) / 86400000
-      )
-      groups.push({ key, daysAgo, entries: incomplete })
-    }
-    return groups.sort((a, b) => a.key < b.key ? 1 : -1)
-  }, [entries, selectedDate])
-  const progressPct = total > 0 ? Math.round((done / total) * 100) : 0
 
 const selectDate = useCallback((key) => {
     setSelectedDate(key)
@@ -949,6 +944,23 @@ const selectDate = useCallback((key) => {
   const weekStart = weekDays[0]
   const weekEnd   = weekDays[6]
   const monthCells = buildMonthCells(viewMonth.year, viewMonth.month)
+  const currentEntries = entries[selectedDate] || [];
+  const overdueEntries = useMemo(() => {
+    const todayDate = new Date(TODAY);
+    const result = Object.entries(entries)
+      .filter(([key]) => new Date(key) < todayDate)
+      .map(([key, dayEntries]) => {
+        const overdue = dayEntries.filter(e => (e.type === 'task' || e.type === 'priority') && !e.done);
+        if (overdue.length === 0) return null;
+        const daysAgo = Math.floor((todayDate - new Date(key)) / (1000 * 60 * 60 * 24));
+        return { key, daysAgo, entries: overdue };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.daysAgo - b.daysAgo);
+    return result;
+  }, [entries]);
+  const { total, done } = getTaskProgress(entries[selectedDate] || [])
+  const progressPct = total ? Math.round((done / total) * 100) : 0
 
   const prevMonth = () => setViewMonth(({ year, month }) => {
     const d = new Date(year, month - 1, 1)
