@@ -714,6 +714,11 @@ body {
   opacity: 0.5;
 }
 
+.drag-handle-placeholder {
+  flex-shrink: 0;
+  width: 14px;
+}
+
 .drag-handle {
   color: var(--muted);
   font-size: 14px;
@@ -777,6 +782,16 @@ body {
   text-decoration-color: var(--muted);
   color: var(--muted);
   opacity: 0.65;
+}
+
+.entry-days-ago {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--sienna);
+  opacity: 0.75;
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .entry-actions {
@@ -864,6 +879,73 @@ body {
   margin-bottom: 4px;
   font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
   opacity: 0.8;
+}
+
+/* ─── Overdue Confirm Modal ─────────────────────────────────── */
+.overdue-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overdue-confirm-modal {
+  background: var(--parchment);
+  border: 1px solid var(--parchment-border);
+  border-radius: 8px;
+  padding: 28px 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 260px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+.overdue-confirm-title {
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  font-size: 18px;
+  color: var(--ink);
+  text-align: center;
+}
+
+.overdue-confirm-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.overdue-confirm-btn {
+  padding: 10px 16px;
+  border-radius: 5px;
+  border: 1px solid var(--parchment-border);
+  background: var(--parchment-alt);
+  color: var(--ink);
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.overdue-confirm-btn:hover {
+  background: var(--sienna);
+  color: #fff;
+  border-color: var(--sienna);
+}
+
+.overdue-confirm-cancel {
+  color: var(--muted);
+  font-size: 13px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.overdue-confirm-cancel:hover {
+  background: var(--parchment-border);
+  color: var(--ink);
+  border-color: transparent;
 }
 
 /* ─── Add Entry Form ────────────────────────────────────────── */

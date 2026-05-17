@@ -32,10 +32,11 @@ export async function addEntry(dateStr, type, text, done = false) {
   await requireAuth()
   const log = await getOrCreateLog(dateStr)
   const count = await prisma.entry.count({ where: { dailyLogId: log.id } })
-  await prisma.entry.create({
+  const entry = await prisma.entry.create({
     data: { type, text, done, dailyLogId: log.id, order: count },
   })
   revalidatePath('/')
+  return { id: entry.id, type: entry.type, text: entry.text, done: entry.done }
 }
 
 export async function toggleEntry(entryId, done) {

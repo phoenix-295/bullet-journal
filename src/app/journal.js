@@ -141,7 +141,7 @@ function BulletSymbol({ type, done, onClick }) {
   )
 }
 
-const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, onEdit, animDelay, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver, onTouchReorder }) {
+const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, onEdit, animDelay, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver, onTouchReorder, daysAgo }) {
   const canDrag = !!onDragStart
   const [isEditing, setIsEditing] = useState(false)
   const [editText, setEditText] = useState(entry.text)
@@ -220,12 +220,16 @@ const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, onEdit, a
       onDrop={onDrop}
       onDragEnd={onDragEnd}
     >
-      {canDrag && <span
-        className="drag-handle"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >⠿</span>}
+      {canDrag ? (
+        <span
+          className="drag-handle"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >⠿</span>
+      ) : (
+        <span className="drag-handle-placeholder" />
+      )}
       <BulletSymbol
         type={entry.type}
         done={entry.done}
@@ -243,6 +247,7 @@ const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, onEdit, a
       ) : (
         <span className={`entry-text${entry.done ? ' done' : ''}`} onDoubleClick={() => setIsEditing(true)}>
           {entry.text}
+          {daysAgo > 0 && <span className="entry-days-ago">({daysAgo}d ago)</span>}
         </span>
       )}
       {(entry.type === 'task' || entry.type === 'priority') && (
@@ -791,7 +796,7 @@ export default function BulletJournal({ logs, collections, meals }) {
   const [searchViewOpen, setSearchViewOpen] = useState(false)
   const [showMeals, setShowMeals] = useState(false)
   const [mealsOpen, setMealsOpen] = useState(false)
-  const [overdueOpen, setOverdueOpen] = useState(true)
+  const [overdueConfirm, setOverdueConfirm] = useState(null)
   const [mealsMap, setMealsMap] = useState(() => mealsToMap(meals))
   const dragIdRef = useRef(null)
   const dragOverElRef = useRef(null)
@@ -883,21 +888,28 @@ const selectDate = useCallback((key) => {
     startTransition(() => { updateEntry(id, text) })
   }, [selectedDate])
 
-  const handleOverdueComplete = useCallback((id, fromDateKey) => {
+  const handleOverdueComplete = useCallback((id, fromDateKey, targetDate) => {
     if (String(id).startsWith('temp-')) return
     const entry = (entries[fromDateKey] || []).find(e => e.id === id)
     if (!entry) return
-    const migrated = { id: `temp-${Date.now()}`, type: entry.type, text: entry.text, done: true }
+    const tempId = `temp-${Date.now()}`
+    const migrated = { id: tempId, type: entry.type, text: entry.text, done: true }
     setEntries(prev => ({
       ...prev,
       [fromDateKey]: (prev[fromDateKey] || []).filter(e => e.id !== id),
-      [selectedDate]: [...(prev[selectedDate] || []), migrated],
+      [targetDate]: [...(prev[targetDate] || []), migrated],
     }))
     startTransition(async () => {
       await deleteEntry(id)
-      await addEntry(selectedDate, entry.type, entry.text, true)
+      const saved = await addEntry(targetDate, entry.type, entry.text, true)
+      setEntries(prev => ({
+        ...prev,
+        [targetDate]: (prev[targetDate] || []).map(e =>
+          e.id === tempId ? saved : e
+        ),
+      }))
     })
-  }, [selectedDate, entries])
+  }, [entries])
 
   const handleCreateCollection = useCallback((name, icon) => {
     const tempId = `temp-${Date.now()}`
@@ -972,16 +984,21 @@ const selectDate = useCallback((key) => {
   }, [selectedDate])
 
   const handleAdd = useCallback(({ type, text }) => {
-    const tempEntry = { id: `temp-${Date.now()}`, type, text, done: false }
+    const tempId = `temp-${Date.now()}`
     setEntries(prev => ({
       ...prev,
-      [selectedDate]: [...(prev[selectedDate] || []), tempEntry],
+      [selectedDate]: [...(prev[selectedDate] || []), { id: tempId, type, text, done: false }],
     }))
     startTransition(async () => {
-      await addEntry(selectedDate, type, text)
-      router.refresh()
+      const saved = await addEntry(selectedDate, type, text)
+      setEntries(prev => ({
+        ...prev,
+        [selectedDate]: (prev[selectedDate] || []).map(e =>
+          e.id === tempId ? saved : e
+        ),
+      }))
     })
-  }, [selectedDate, router])
+  }, [selectedDate])
 
   const currentDateInfo = parseKey(selectedDate)
   const weekDays  = getWeekDays(selectedDate)
@@ -992,19 +1009,20 @@ const selectDate = useCallback((key) => {
     ? (entries[selectedDate] || []).filter(e => e.type === filterType)
     : entries[selectedDate] || [];
   const overdueEntries = useMemo(() => {
-    const todayDate = new Date(TODAY);
+    if (selectedDate > TODAY) return []
+    const refDate = new Date(selectedDate)
     const result = Object.entries(entries)
-      .filter(([key]) => new Date(key) < todayDate)
+      .filter(([key]) => new Date(key) < refDate)
       .map(([key, dayEntries]) => {
         const overdue = dayEntries.filter(e => (e.type === 'task' || e.type === 'priority') && !e.done);
         if (overdue.length === 0) return null;
-        const daysAgo = Math.floor((todayDate - new Date(key)) / (1000 * 60 * 60 * 24));
+        const daysAgo = Math.floor((refDate - new Date(key)) / (1000 * 60 * 60 * 24));
         return { key, daysAgo, entries: overdue };
       })
       .filter(Boolean)
       .sort((a, b) => a.daysAgo - b.daysAgo);
     return result;
-  }, [entries]);
+  }, [entries, selectedDate]);
   const { total, done } = getTaskProgress(entries[selectedDate] || [])
   const progressPct = total ? Math.round((done / total) * 100) : 0
 
@@ -1340,38 +1358,25 @@ const selectDate = useCallback((key) => {
         )}
 
         {/* Content */}
-        {!activeCollection && view === 'daily' && (
-          <>
-            {overdueEntries.length > 0 && (
-              <div className="overdue-section">
-                <div className="overdue-header" onClick={() => setOverdueOpen(o => !o)}>
-                  <span className="overdue-header-label">
-                    {overdueEntries.reduce((s, g) => s + g.entries.length, 0)} incomplete from past days
-                  </span>
-                  <span className="overdue-header-arrow">{overdueOpen ? '▾' : '▸'}</span>
-                </div>
-                {overdueOpen && overdueEntries.map(({ key, daysAgo, entries: dayEntries }) => (
-                  <div key={key} className="overdue-group">
-                    <div className="overdue-date-label">
-                      {daysAgo === 1 ? 'Yesterday' : `${daysAgo} days ago`} · {parseKey(key).month} {parseKey(key).day}
-                    </div>
-                    {dayEntries.map((entry, i) => (
-                      <EntryItem
-                        key={entry.id}
-                        entry={entry}
-                        onToggle={(id) => handleOverdueComplete(id, key)}
-                        onDelete={(id) => handleDelete(id, key)}
-                        onEdit={handleEdit}
-                        animDelay={i * 40}
-                        isDragOver={false}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
+        {!activeCollection && view === 'daily' && (() => {
+          const showOverdue = !filterType || filterType === 'task' || filterType === 'priority'
+          return (<>
             <div className="journal-entries" key={entriesKey}>
-              {currentEntries.length === 0 ? (
+              {showOverdue && overdueEntries.map(({ key, daysAgo, entries: dayEntries }) =>
+                dayEntries.map((entry, i) => (
+                  <EntryItem
+                    key={entry.id}
+                    entry={entry}
+                    onToggle={(id) => setOverdueConfirm({ id, fromDateKey: key })}
+                    onDelete={(id) => handleDelete(id, key)}
+                    onEdit={handleEdit}
+                    animDelay={i * 40}
+                    isDragOver={false}
+                    daysAgo={daysAgo}
+                  />
+                ))
+              )}
+              {currentEntries.length === 0 && !(showOverdue && overdueEntries.length > 0) ? (
                 <div className="journal-entries-empty animate-fade-in">
                   <span className="journal-entries-empty-symbol">◌</span>
                   <span className="journal-entries-empty-text">
@@ -1414,8 +1419,8 @@ const selectDate = useCallback((key) => {
               )}
             </div>
             {!searchQuery && <AddEntryForm onAdd={handleAdd} />}
-          </>
-        )}
+          </>)
+        })()}
 
         {!activeCollection && view === 'weekly' && (
           <WeeklyView
@@ -1471,6 +1476,29 @@ const selectDate = useCallback((key) => {
               onUpdate={handleUpdateMeal}
             />
           )}
+        </div>
+      )}
+
+      {/* ── Overdue complete confirm ─────────────────────────── */}
+      {overdueConfirm && (
+        <div className="overdue-confirm-overlay" onClick={() => setOverdueConfirm(null)}>
+          <div className="overdue-confirm-modal" onClick={e => e.stopPropagation()}>
+            <div className="overdue-confirm-title">When did you complete this?</div>
+            <div className="overdue-confirm-btns">
+              <button
+                className="overdue-confirm-btn"
+                onClick={() => { handleOverdueComplete(overdueConfirm.id, overdueConfirm.fromDateKey, TODAY); setOverdueConfirm(null) }}
+              >Today</button>
+              <button
+                className="overdue-confirm-btn"
+                onClick={() => { handleOverdueComplete(overdueConfirm.id, overdueConfirm.fromDateKey, offsetDate(TODAY, -1)); setOverdueConfirm(null) }}
+              >Yesterday</button>
+              <button
+                className="overdue-confirm-btn overdue-confirm-cancel"
+                onClick={() => setOverdueConfirm(null)}
+              >Cancel</button>
+            </div>
+          </div>
         </div>
       )}
 
