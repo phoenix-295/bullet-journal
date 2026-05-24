@@ -35,13 +35,12 @@ export async function addEntry(dateStr, type, text, done = false) {
   const entry = await prisma.entry.create({
     data: { type, text, done, dailyLogId: log.id, order: count },
   })
-  revalidatePath('/')
   return { id: entry.id, type: entry.type, text: entry.text, done: entry.done }
 }
 
 export async function toggleEntry(entryId, done) {
   await requireAuth()
-  await prisma.entry.update({
+  await prisma.entry.updateMany({
     where: { id: entryId },
     data: { done },
   })
@@ -49,7 +48,7 @@ export async function toggleEntry(entryId, done) {
 
 export async function updateEntry(entryId, text) {
   await requireAuth()
-  await prisma.entry.update({
+  await prisma.entry.updateMany({
     where: { id: entryId },
     data: { text },
   })

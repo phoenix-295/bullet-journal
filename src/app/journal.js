@@ -802,6 +802,8 @@ export default function BulletJournal({ logs, collections, meals }) {
   const dragOverElRef = useRef(null)
   const [pullDistance, setPullDistance] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const toggleQueue = useRef(new Set())
+
   const [collectionsState, setCollectionsState] = useState(() =>
     collections.map(c => ({
       id: c.id, icon: c.icon, name: c.name,
@@ -865,7 +867,11 @@ const selectDate = useCallback((key) => {
         e.id === id ? { ...e, done: !e.done } : e
       ),
     }))
-    startTransition(() => { toggleEntry(id, !currentDone) })
+    if (String(id).startsWith('temp-')) {
+      toggleQueue.current.add(id)
+      return
+    }
+    toggleEntry(id, !currentDone)
   }, [selectedDate])
 
   const handleDelete = useCallback((id, dateKey) => {
@@ -989,12 +995,16 @@ const selectDate = useCallback((key) => {
       ...prev,
       [selectedDate]: [...(prev[selectedDate] || []), { id: tempId, type, text, done: false }],
     }))
-    startTransition(async () => {
-      const saved = await addEntry(selectedDate, type, text)
+    addEntry(selectedDate, type, text).then(saved => {
+      const wasToggled = toggleQueue.current.has(tempId)
+      toggleQueue.current.delete(tempId)
+      if (wasToggled) {
+        toggleEntry(saved.id, true)
+      }
       setEntries(prev => ({
         ...prev,
         [selectedDate]: (prev[selectedDate] || []).map(e =>
-          e.id === tempId ? saved : e
+          e.id === tempId ? { ...saved, done: wasToggled || saved.done } : e
         ),
       }))
     })
@@ -1393,27 +1403,27 @@ const selectDate = useCallback((key) => {
                     onEdit={handleEdit}
                     animDelay={i * 40}
                     isDragOver={false}
-                    onDragStart={filterType ? null : () => {
+                    onDragStart={() => {
                       dragIdRef.current = entry.id
                     }}
-                    onDragOver={filterType ? null : (e) => {
+                    onDragOver={(e) => {
                       if (dragOverElRef.current && dragOverElRef.current !== e.currentTarget) {
                         dragOverElRef.current.classList.remove('drag-over')
                       }
                       dragOverElRef.current = e.currentTarget
                       e.currentTarget.classList.add('drag-over')
                     }}
-                    onDrop={filterType ? null : (e) => {
+                    onDrop={(e) => {
                       e.currentTarget.classList.remove('drag-over')
                       handleReorder(dragIdRef.current, entry.id)
                       dragOverElRef.current = null
                     }}
-                    onDragEnd={filterType ? null : () => {
+                    onDragEnd={() => {
                       dragOverElRef.current?.classList.remove('drag-over')
                       dragIdRef.current = null
                       dragOverElRef.current = null
                     }}
-                    onTouchReorder={filterType ? null : (fromId, toId) => handleReorder(fromId, toId)}
+                    onTouchReorder={(fromId, toId) => handleReorder(fromId, toId)}
                   />
                 ))
               )}
