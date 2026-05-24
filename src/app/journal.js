@@ -283,6 +283,21 @@ function AddEntryForm({ onAdd }) {
         e.preventDefault()
         inputRef.current?.focus()
       }
+      if (e.altKey && e.key === '1') {
+        e.preventDefault()
+        setType('task')
+        inputRef.current?.focus()
+      }
+      if (e.altKey && e.key === '2') {
+        e.preventDefault()
+        setType('event')
+        inputRef.current?.focus()
+      }
+      if (e.altKey && e.key === '3') {
+        e.preventDefault()
+        setType('note')
+        inputRef.current?.focus()
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -332,7 +347,7 @@ function AddEntryForm({ onAdd }) {
           Record
         </button>
       </div>
-      <p className="add-form-hint">Press Enter to add · Ctrl+/ to focus</p>
+      <p className="add-form-hint">Press Enter to add · Ctrl+/ to focus · Alt+1 task · Alt+2 event · Alt+3 note</p>
     </form>
   )
 }
