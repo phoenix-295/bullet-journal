@@ -800,6 +800,7 @@ export default function BulletJournal({ logs, collections, meals }) {
   const [mealsMap, setMealsMap] = useState(() => mealsToMap(meals))
   const dragIdRef = useRef(null)
   const dragOverElRef = useRef(null)
+  const entriesRef = useRef(null)
   const [pullDistance, setPullDistance] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const toggleQueue = useRef(new Set())
@@ -873,6 +874,12 @@ const selectDate = useCallback((key) => {
     }
     toggleEntry(id, !currentDone)
   }, [selectedDate])
+
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      entriesRef.current?.scrollTo({ top: entriesRef.current.scrollHeight, behavior: 'smooth' })
+    })
+  }, [])
 
   const handleDelete = useCallback((id, dateKey) => {
     const key = dateKey ?? selectedDate
@@ -995,6 +1002,7 @@ const selectDate = useCallback((key) => {
       ...prev,
       [selectedDate]: [...(prev[selectedDate] || []), { id: tempId, type, text, done: false }],
     }))
+    scrollToBottom()
     addEntry(selectedDate, type, text).then(saved => {
       const wasToggled = toggleQueue.current.has(tempId)
       toggleQueue.current.delete(tempId)
@@ -1371,7 +1379,7 @@ const selectDate = useCallback((key) => {
         {!activeCollection && view === 'daily' && (() => {
           const showOverdue = !filterType || filterType === 'task' || filterType === 'priority'
           return (<>
-            <div className="journal-entries" key={entriesKey}>
+            <div className="journal-entries" key={entriesKey} ref={entriesRef}>
               {showOverdue && overdueEntries.map(({ key, daysAgo, entries: dayEntries }) =>
                 dayEntries.map((entry, i) => (
                   <EntryItem
