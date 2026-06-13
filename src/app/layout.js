@@ -20,7 +20,21 @@ const ebGaramond = EB_Garamond({
 export const metadata = {
   title: "Bullet Journal",
   description: "Your personal analog-inspired digital bullet journal",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Bullet Journal",
+  },
 };
+
+export const viewport = {
+  themeColor: "#1a1a1a",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 
 export default function RootLayout({ children }) {
   return (
