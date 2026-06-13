@@ -25,7 +25,11 @@ export const metadata = {
     statusBarStyle: "black-translucent",
     title: "Bullet Journal",
   },
+  icons: {
+    apple: "/icon-192.png",
+  },
 };
+
 
 export const viewport = {
   themeColor: "#1a1a1a",
@@ -45,6 +49,15 @@ export default function RootLayout({ children }) {
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.setAttribute('data-theme','dark');}})();` }} />
+        <script dangerouslySetInnerHTML={{ __html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js')
+                .then(function(reg) { console.log('ServiceWorker registered:', reg.scope); })
+                .catch(function(err) { console.error('ServiceWorker failed:', err); });
+            });
+          }
+        ` }} />
       </head>
       <body>{children}</body>
     </html>
