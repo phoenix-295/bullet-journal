@@ -35,8 +35,8 @@ model Entry {
   order      Int       @default(0)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
-  dailyLogId String
-  dailyLog   DailyLog  @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+  dailyLogId String?
+  dailyLog   DailyLog? @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
 }
 
 model Collection {

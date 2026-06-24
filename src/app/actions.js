@@ -30,12 +30,16 @@ async function getOrCreateLog(dateStr) {
 
 export async function addEntry(dateStr, type, text, done = false) {
   await requireAuth()
-  const log = await getOrCreateLog(dateStr)
-  const count = await prisma.entry.count({ where: { dailyLogId: log.id } })
+  let dailyLogId = null
+  if (dateStr) {
+    const log = await getOrCreateLog(dateStr)
+    dailyLogId = log.id
+  }
+  const count = await prisma.entry.count({ where: { dailyLogId } })
   const entry = await prisma.entry.create({
-    data: { type, text, done, dailyLogId: log.id, order: count },
+    data: { type, text, done, dailyLogId, order: count },
   })
-  return { id: entry.id, type: entry.type, text: entry.text, done: entry.done }
+  return { id: entry.id, type: entry.type, text: entry.text, done: entry.done, dailyLogId: entry.dailyLogId }
 }
 
 export async function toggleEntry(entryId, done) {
@@ -113,4 +117,18 @@ export async function toggleCollectionItem(itemId, done) {
 export async function deleteCollectionItem(itemId) {
   await requireAuth()
   await prisma.collectionItem.delete({ where: { id: itemId } })
+}
+
+export async function scheduleEntry(entryId, dateStr) {
+  await requireAuth()
+  let dailyLogId = null
+  if (dateStr) {
+    const log = await getOrCreateLog(dateStr)
+    dailyLogId = log.id
+  }
+  const count = await prisma.entry.count({ where: { dailyLogId } })
+  await prisma.entry.update({
+    where: { id: entryId },
+    data: { dailyLogId, order: count },
+  })
 }

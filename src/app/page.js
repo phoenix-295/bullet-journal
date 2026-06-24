@@ -10,7 +10,7 @@ export default async function Page() {
   since90.setDate(since90.getDate() - COMPLETED_DAYS)
   since90.setHours(0, 0, 0, 0)
 
-  const [logs, openTaskLogs, collections, meals] = await Promise.all([
+  const [logs, openTaskLogs, collections, meals, globalEntries] = await Promise.all([
     // 90 days of all entries (events, notes, completed tasks, open tasks)
     prisma.dailyLog.findMany({
       where: { date: { gte: since90 } },
@@ -41,7 +41,11 @@ export default async function Page() {
     prisma.dailyMeals.findMany({
       where: { date: { gte: since90 } },
     }),
+    prisma.entry.findMany({
+      where: { dailyLogId: null },
+      orderBy: { order: 'asc' },
+    }),
   ])
 
-  return <BulletJournal logs={[...logs, ...openTaskLogs]} collections={collections} meals={meals} />
+  return <BulletJournal logs={[...logs, ...openTaskLogs]} collections={collections} meals={meals} globalEntries={globalEntries} />
 }

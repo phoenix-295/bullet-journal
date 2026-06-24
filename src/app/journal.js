@@ -6,7 +6,7 @@ import {
   addEntry, toggleEntry, deleteEntry, reorderEntries, updateEntry,
   createCollection, deleteCollection,
   addCollectionItem, toggleCollectionItem, deleteCollectionItem,
-  updateMeal,
+  updateMeal, scheduleEntry,
 } from './actions'
 import { logout } from './auth-actions'
 
@@ -31,6 +31,8 @@ function makeKey(year, month0, day) {
 // Today in local time
 const _now = new Date()
 const TODAY = makeKey(_now.getFullYear(), _now.getMonth(), _now.getDate())
+const _t = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate() + 1)
+const TOMORROW = makeKey(_t.getFullYear(), _t.getMonth(), _t.getDate())
 
 // 14 days ending today (for the date picker strip)
 const DATES = Array.from({ length: 14 }, (_, i) => {
@@ -141,11 +143,18 @@ function BulletSymbol({ type, done, onClick }) {
   )
 }
 
-const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, onEdit, animDelay, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver, onTouchReorder, daysAgo }) {
+const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, onEdit, animDelay, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver, onTouchReorder, daysAgo, onSchedule, dateLabel, onDateClick }) {
   const canDrag = !!onDragStart
   const [isEditing, setIsEditing] = useState(false)
+  const [showScheduleMenu, setShowScheduleMenu] = useState(false)
   const [editText, setEditText] = useState(entry.text)
   const inputRef = useRef(null)
+  const dateInputRef = useRef(null)
+
+  const handleScheduleOption = (dateStr) => {
+    onSchedule(entry.id, dateStr)
+    setShowScheduleMenu(false)
+  }
 
   const handleSave = () => {
     if (editText.trim() && editText.trim() !== entry.text) {
@@ -250,8 +259,104 @@ const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, onEdit, a
           {daysAgo > 0 && <span className="entry-days-ago">({daysAgo}d ago)</span>}
         </span>
       )}
+      {dateLabel && (
+        <span 
+          className="entry-date-label" 
+          onClick={onDateClick} 
+          style={{ cursor: onDateClick ? 'pointer' : 'default' }}
+        >
+          {dateLabel}
+        </span>
+      )}
       {(entry.type === 'task' || entry.type === 'priority') && (
         <div className="entry-actions">
+          {onSchedule && (
+            <div className="schedule-picker-wrapper">
+              <button
+                className="entry-action-btn"
+                title="Schedule / Move to Date"
+                type="button"
+                onClick={() => setShowScheduleMenu(prev => !prev)}
+              >
+                📅
+              </button>
+              {showScheduleMenu && (
+                <div 
+                  className="schedule-dropdown-menu"
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    backgroundColor: 'var(--parchment-alt, #252118)',
+                    border: '1px solid var(--parchment-border, #302c24)',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: '4px',
+                    zIndex: 1000,
+                    minWidth: '150px',
+                    marginTop: '6px',
+                  }}
+                >
+                  <button 
+                    type="button" 
+                    className="schedule-dropdown-item" 
+                    style={{ background: 'transparent', border: 'none', color: 'var(--ink, #e4d8c0)', fontSize: '12px', padding: '8px 12px', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'inherit', whiteSpace: 'nowrap' }} 
+                    onClick={() => handleScheduleOption(TODAY)}
+                  >
+                    ➡️ Today
+                  </button>
+                  <button 
+                    type="button" 
+                    className="schedule-dropdown-item" 
+                    style={{ background: 'transparent', border: 'none', color: 'var(--ink, #e4d8c0)', fontSize: '12px', padding: '8px 12px', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'inherit', whiteSpace: 'nowrap' }} 
+                    onClick={() => handleScheduleOption(TOMORROW)}
+                  >
+                    ➡️ Tomorrow
+                  </button>
+                  {entry.dateKey && (
+                    <button 
+                      type="button" 
+                      className="schedule-dropdown-item" 
+                      style={{ background: 'transparent', border: 'none', color: 'var(--ink, #e4d8c0)', fontSize: '12px', padding: '8px 12px', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'inherit', whiteSpace: 'nowrap' }} 
+                      onClick={() => handleScheduleOption(null)}
+                    >
+                      📥 Send to Inbox
+                    </button>
+                  )}
+                  <button 
+                    type="button" 
+                    className="schedule-dropdown-item" 
+                    style={{ background: 'transparent', border: 'none', color: 'var(--ink, #e4d8c0)', fontSize: '12px', padding: '8px 12px', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'inherit', whiteSpace: 'nowrap' }} 
+                    onClick={() => {
+                      dateInputRef.current?.showPicker()
+                      setShowScheduleMenu(false)
+                    }}
+                  >
+                    📅 Pick Date...
+                  </button>
+                </div>
+              )}
+              <input
+                type="date"
+                ref={dateInputRef}
+                value={entry.dateKey || ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleScheduleOption(e.target.value)
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  width: 0,
+                  height: 0,
+                  opacity: 0,
+                  pointerEvents: 'none'
+                }}
+              />
+            </div>
+          )}
           <button
             className="entry-action-btn"
             onClick={() => onToggle(entry.id, entry.done)}
@@ -272,9 +377,9 @@ const EntryItem = memo(function EntryItem({ entry, onToggle, onDelete, onEdit, a
   )
 })
 
-function AddEntryForm({ onAdd }) {
+function AddEntryForm({ onAdd, allowedTypes }) {
   const [text, setText]   = useState('')
-  const [type, setType]   = useState('task')
+  const [type, setType]   = useState(allowedTypes ? allowedTypes[0] : 'task')
   const inputRef          = useRef(null)
 
   useEffect(() => {
@@ -283,17 +388,17 @@ function AddEntryForm({ onAdd }) {
         e.preventDefault()
         inputRef.current?.focus()
       }
-      if (e.altKey && e.key === '1') {
+      if (e.altKey && e.key === '1' && (!allowedTypes || allowedTypes.includes('task'))) {
         e.preventDefault()
         setType('task')
         inputRef.current?.focus()
       }
-      if (e.altKey && e.key === '2') {
+      if (e.altKey && e.key === '2' && (!allowedTypes || allowedTypes.includes('event'))) {
         e.preventDefault()
         setType('event')
         inputRef.current?.focus()
       }
-      if (e.altKey && e.key === '3') {
+      if (e.altKey && e.key === '3' && (!allowedTypes || allowedTypes.includes('note'))) {
         e.preventDefault()
         setType('note')
         inputRef.current?.focus()
@@ -301,7 +406,7 @@ function AddEntryForm({ onAdd }) {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [allowedTypes])
 
   const submit = (e) => {
     e.preventDefault()
@@ -311,10 +416,14 @@ function AddEntryForm({ onAdd }) {
     inputRef.current?.focus()
   }
 
+  const typesToRender = allowedTypes
+    ? Object.entries(BULLET_TYPES).filter(([k]) => allowedTypes.includes(k))
+    : Object.entries(BULLET_TYPES)
+
   return (
     <form className="journal-add-form" onSubmit={submit}>
       <div className="add-form-type-selector">
-        {Object.entries(BULLET_TYPES).map(([key, cfg]) => (
+        {typesToRender.map(([key, cfg]) => (
           <button
             key={key}
             type="button"
@@ -347,7 +456,10 @@ function AddEntryForm({ onAdd }) {
           Record
         </button>
       </div>
-      <p className="add-form-hint">Press Enter to add · Ctrl+/ to focus · Alt+1 task · Alt+2 event · Alt+3 note</p>
+      <p className="add-form-hint">
+        Press Enter to add · Ctrl+/ to focus
+        {!allowedTypes && " · Alt+1 task · Alt+2 event · Alt+3 note"}
+      </p>
     </form>
   )
 }
@@ -780,7 +892,151 @@ function MonthlyView({ entries, monthCells, onSelectDate, setView, filterType, m
   )
 }
 
-/* ─── Main Page ──────────────────────────────────────────────── */
+function TasksView({
+  globalEntries,
+  openDatedTasks,
+  onToggle,
+  onDelete,
+  onEdit,
+  onAdd,
+  onSchedule,
+  dragIdRef,
+  dragOverElRef,
+  handleReorder,
+  selectDate,
+  setView,
+}) {
+  const [filterType, setFilterType] = useState(null)
+
+  const filteredGlobal = useMemo(() => {
+    return globalEntries.filter(e => {
+      if (filterType) return e.type === filterType
+      return e.type === 'task' || e.type === 'priority'
+    })
+  }, [globalEntries, filterType])
+
+  const filteredOpenDated = useMemo(() => {
+    return openDatedTasks.filter(e => {
+      if (filterType) return e.type === filterType
+      return true
+    })
+  }, [openDatedTasks, filterType])
+
+  return (
+    <div className="tasks-view-container animate-fade-in">
+      <div className="tasks-view-header">
+        <h2 className="tasks-view-title">Global Tasks & Inbox</h2>
+        <div className="tasks-filter-tabs">
+          <button
+            className={`tasks-filter-tab${!filterType ? ' active' : ''}`}
+            onClick={() => setFilterType(null)}
+          >
+            All
+          </button>
+          <button
+            className={`tasks-filter-tab${filterType === 'task' ? ' active' : ''}`}
+            onClick={() => setFilterType('task')}
+          >
+            • Tasks
+          </button>
+          <button
+            className={`tasks-filter-tab${filterType === 'priority' ? ' active' : ''}`}
+            onClick={() => setFilterType('priority')}
+          >
+            ★ Priorities
+          </button>
+        </div>
+      </div>
+      
+      <div className="tasks-grid">
+        {/* Column 1: Global Tasks */}
+        <div className="tasks-col">
+          <h3 className="tasks-col-title">Inbox (Global Tasks)</h3>
+          <p className="tasks-col-subtitle">Tasks without a specific date. Drag to reorder.</p>
+          
+          <div className="journal-entries">
+            {filteredGlobal.length === 0 ? (
+              <div className="journal-entries-empty">
+                <span className="journal-entries-empty-text">No global tasks yet. Add one below!</span>
+              </div>
+            ) : (
+              [...filteredGlobal].sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1)).map((entry, i) => (
+                <EntryItem
+                  key={entry.id}
+                  entry={entry}
+                  onToggle={(id, done) => onToggle(id, done, 'global')}
+                  onDelete={(id) => onDelete(id, 'global')}
+                  onEdit={(id, text) => onEdit(id, text, 'global')}
+                  onSchedule={onSchedule}
+                  animDelay={i * 30}
+                  isDragOver={false}
+                  onDragStart={() => {
+                    dragIdRef.current = entry.id
+                  }}
+                  onDragOver={(e) => {
+                    if (dragOverElRef.current && dragOverElRef.current !== e.currentTarget) {
+                      dragOverElRef.current.classList.remove('drag-over')
+                    }
+                    dragOverElRef.current = e.currentTarget
+                    e.currentTarget.classList.add('drag-over')
+                  }}
+                  onDrop={(e) => {
+                    e.currentTarget.classList.remove('drag-over')
+                    handleReorder(dragIdRef.current, entry.id, 'global')
+                    dragOverElRef.current = null
+                  }}
+                  onDragEnd={() => {
+                    dragOverElRef.current?.classList.remove('drag-over')
+                    dragIdRef.current = null
+                    dragOverElRef.current = null
+                  }}
+                  onTouchReorder={(fromId, toId) => handleReorder(fromId, toId, 'global')}
+                />
+              ))
+            )}
+          </div>
+          
+          <AddEntryForm 
+            onAdd={({ type, text }) => onAdd({ type, text })} 
+            allowedTypes={['task', 'priority']}
+          />
+        </div>
+        
+        {/* Column 2: Dated Open Tasks */}
+        <div className="tasks-col">
+          <h3 className="tasks-col-title">Dated Open Tasks</h3>
+          <p className="tasks-col-subtitle">Uncompleted tasks from your calendar.</p>
+          
+          <div className="journal-entries">
+            {filteredOpenDated.length === 0 ? (
+              <div className="journal-entries-empty">
+                <span className="journal-entries-empty-text">All dated tasks completed! 🎉</span>
+              </div>
+            ) : (
+              filteredOpenDated.map((entry, i) => {
+                const dateInfo = parseKey(entry.dateKey)
+                return (
+                  <EntryItem
+                    key={entry.id}
+                    entry={entry}
+                    onToggle={(id, done) => onToggle(id, done, entry.dateKey)}
+                    onDelete={(id) => onDelete(id, entry.dateKey)}
+                    onEdit={(id, text) => onEdit(id, text, entry.dateKey)}
+                    onSchedule={(id, targetDate) => onSchedule(id, targetDate, entry.dateKey)}
+                    animDelay={i * 30}
+                    isDragOver={false}
+                    dateLabel={`${dateInfo.month} ${dateInfo.day}`}
+                    onDateClick={() => { selectDate(entry.dateKey); setView('daily') }}
+                  />
+                )
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function mealsToMap(meals) {
   const map = {}
@@ -792,11 +1048,75 @@ function mealsToMap(meals) {
   return map
 }
 
-export default function BulletJournal({ logs, collections, meals }) {
+function areEntriesEqual(a, b) {
+  if (!a || !b) return a === b
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
+  if (keysA.length !== keysB.length) return false
+  
+  for (const key of keysA) {
+    const listA = a[key] || []
+    const listB = b[key] || []
+    if (listA.length !== listB.length) return false
+    for (let i = 0; i < listA.length; i++) {
+      const itemA = listA[i]
+      const itemB = listB[i]
+      
+      const idMatch = itemA.id === itemB.id || 
+        (String(itemA.id).startsWith('temp-') && !String(itemB.id).startsWith('temp-')) ||
+        (String(itemB.id).startsWith('temp-') && !String(itemA.id).startsWith('temp-'))
+        
+      if (!idMatch || itemA.type !== itemB.type || itemA.text !== itemB.text || itemA.done !== itemB.done) {
+        return false
+      }
+    }
+  }
+  return true
+}
+
+function areCollectionsEqual(a, b) {
+  if (!a || !b) return a === b
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const colA = a[i]
+    const colB = b[i]
+    if (colA.id !== colB.id || colA.name !== colB.name || colA.icon !== colB.icon) return false
+    const itemsA = colA.items || []
+    const itemsB = colB.items || []
+    if (itemsA.length !== itemsB.length) return false
+    for (let j = 0; j < itemsA.length; j++) {
+      const itemA = itemsA[j]
+      const itemB = itemsB[j]
+      if (itemA.id !== itemB.id || itemA.text !== itemB.text || itemA.done !== itemB.done) return false
+    }
+  }
+  return true
+}
+
+function areArraysEqual(a, b) {
+  if (!a || !b) return a === b
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const itemA = a[i]
+    const itemB = b[i]
+    
+    const idMatch = itemA.id === itemB.id || 
+      (String(itemA.id).startsWith('temp-') && !String(itemB.id).startsWith('temp-')) ||
+      (String(itemB.id).startsWith('temp-') && !String(itemA.id).startsWith('temp-'))
+      
+    if (!idMatch || itemA.type !== itemB.type || itemA.text !== itemB.text || itemA.done !== itemB.done) {
+      return false
+    }
+  }
+  return true
+}
+
+export default function BulletJournal({ logs, collections, meals, globalEntries }) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
   const [entries, setEntries]                   = useState(() => logsToEntries(logs))
+  const [globalEntriesState, setGlobalEntriesState] = useState(() => globalEntries || [])
   const [selectedDate, setSelectedDate]         = useState(TODAY)
   const [entriesKey, setEntriesKey]             = useState(0)
   const [isDark, setIsDark]                     = useState(false)
@@ -844,14 +1164,35 @@ export default function BulletJournal({ logs, collections, meals }) {
   }, [isDark])
 
   useEffect(() => {
-    setEntries(logsToEntries(logs))
+    const nextEntries = logsToEntries(logs)
+    setEntries(prev => {
+      if (areEntriesEqual(prev, nextEntries)) {
+        return prev
+      }
+      return nextEntries
+    })
   }, [logs])
 
   useEffect(() => {
-    setCollectionsState(collections.map(c => ({
+    setGlobalEntriesState(prev => {
+      if (areArraysEqual(prev, globalEntries)) {
+        return prev
+      }
+      return globalEntries || []
+    })
+  }, [globalEntries])
+
+  useEffect(() => {
+    const nextCollections = collections.map(c => ({
       id: c.id, icon: c.icon, name: c.name,
       items: (c.items || []).map(i => ({ id: i.id, text: i.text, done: i.done })),
-    })))
+    }))
+    setCollectionsState(prev => {
+      if (areCollectionsEqual(prev, nextCollections)) {
+        return prev
+      }
+      return nextCollections
+    })
   }, [collections])
 
   useEffect(() => {
@@ -876,6 +1217,17 @@ const selectDate = useCallback((key) => {
 
   // dateKey param lets weekly view specify which date's entries to mutate
   const handleToggle = useCallback((id, currentDone, dateKey) => {
+    if (dateKey === 'global') {
+      setGlobalEntriesState(prev => prev.map(e =>
+        e.id === id ? { ...e, done: !e.done } : e
+      ))
+      if (String(id).startsWith('temp-')) {
+        toggleQueue.current.add(id)
+        return
+      }
+      toggleEntry(id, !currentDone)
+      return
+    }
     const key = dateKey ?? selectedDate
     setEntries(prev => ({
       ...prev,
@@ -897,6 +1249,11 @@ const selectDate = useCallback((key) => {
   }, [])
 
   const handleDelete = useCallback((id, dateKey) => {
+    if (dateKey === 'global') {
+      setGlobalEntriesState(prev => prev.filter(e => e.id !== id))
+      deleteEntry(id)
+      return
+    }
     const key = dateKey ?? selectedDate
     setEntries(prev => ({
       ...prev,
@@ -906,6 +1263,13 @@ const selectDate = useCallback((key) => {
   }, [selectedDate])
 
   const handleEdit = useCallback((id, text, dateKey) => {
+    if (dateKey === 'global') {
+      setGlobalEntriesState(prev => prev.map(e =>
+        e.id === id ? { ...e, text } : e
+      ))
+      startTransition(() => { updateEntry(id, text) })
+      return
+    }
     const key = dateKey ?? selectedDate
     setEntries(prev => ({
       ...prev,
@@ -984,10 +1348,27 @@ const selectDate = useCallback((key) => {
     startTransition(() => { deleteCollectionItem(itemId) })
   }, [])
 
-  const handleReorder = useCallback((fromId, toId) => {
+  const handleReorder = useCallback((fromId, toId, dateKey) => {
     if (fromId === toId) return
+    if (dateKey === 'global') {
+      setGlobalEntriesState(prev => {
+        const list = [...prev]
+        const fromIndex = list.findIndex(e => e.id === fromId)
+        const toIndex = list.findIndex(e => e.id === toId)
+        if (fromIndex === -1 || toIndex === -1) return prev
+        const [moved] = list.splice(fromIndex, 1)
+        list.splice(toIndex, 0, moved)
+        const orderedIds = list.map(e => e.id)
+        setTimeout(() => {
+          startTransition(() => { reorderEntries(orderedIds) })
+        }, 0)
+        return list
+      })
+      return
+    }
+    const key = dateKey ?? selectedDate
     setEntries(prev => {
-      const list = [...(prev[selectedDate] || [])]
+      const list = [...(prev[key] || [])]
       const fromIndex = list.findIndex(e => e.id === fromId)
       const toIndex = list.findIndex(e => e.id === toId)
       if (fromIndex === -1 || toIndex === -1) return prev
@@ -997,9 +1378,60 @@ const selectDate = useCallback((key) => {
       setTimeout(() => {
         startTransition(() => { reorderEntries(orderedIds) })
       }, 0)
-      return { ...prev, [selectedDate]: list }
+      return { ...prev, [key]: list }
     })
   }, [selectedDate])
+
+  const handleGlobalAdd = useCallback(({ type, text }) => {
+    const tempId = `temp-${Date.now()}`
+    setGlobalEntriesState(prev => [...prev, { id: tempId, type, text, done: false }])
+    addEntry(null, type, text).then(saved => {
+      const wasToggled = toggleQueue.current.has(tempId)
+      toggleQueue.current.delete(tempId)
+      if (wasToggled) {
+        toggleEntry(saved.id, true)
+      }
+      setGlobalEntriesState(prev => prev.map(e =>
+        e.id === tempId ? { ...saved, done: wasToggled || saved.done } : e
+      ))
+    })
+  }, [])
+
+  const handleSchedule = useCallback((id, dateStr, fromDateKey) => {
+    if (fromDateKey === 'global' || !fromDateKey) {
+      if (dateStr) {
+        const entryToMove = globalEntriesState.find(e => e.id === id)
+        setGlobalEntriesState(prev => prev.filter(e => e.id !== id))
+        if (entryToMove) {
+          setEntries(prev => ({
+            ...prev,
+            [dateStr]: [...(prev[dateStr] || []), { ...entryToMove, dailyLogId: 'placeholder' }]
+          }))
+        }
+      }
+    } else {
+      const sourceList = entries[fromDateKey] || []
+      const entryToMove = sourceList.find(e => e.id === id)
+      if (entryToMove) {
+        setEntries(prev => ({
+          ...prev,
+          [fromDateKey]: (prev[fromDateKey] || []).filter(e => e.id !== id)
+        }))
+        if (dateStr) {
+          setEntries(prev => ({
+            ...prev,
+            [dateStr]: [...(prev[dateStr] || []), { ...entryToMove, dailyLogId: 'placeholder' }]
+          }))
+        } else {
+          setGlobalEntriesState(gPrev => [...gPrev, { ...entryToMove, dailyLogId: null }])
+        }
+      }
+    }
+    startTransition(async () => {
+      await scheduleEntry(id, dateStr)
+      router.refresh()
+    })
+  }, [globalEntriesState, entries, router])
 
   const handleUpdateMeal = useCallback((meal, text) => {
     setMealsMap(prev => ({
@@ -1058,6 +1490,18 @@ const selectDate = useCallback((key) => {
   }, [entries, selectedDate]);
   const { total, done } = getTaskProgress(entries[selectedDate] || [])
   const progressPct = total ? Math.round((done / total) * 100) : 0
+
+  const openDatedTasks = useMemo(() => {
+    const list = []
+    Object.entries(entries).forEach(([dateKey, dayEntries]) => {
+      dayEntries.forEach(e => {
+        if ((e.type === 'task' || e.type === 'priority') && !e.done) {
+          list.push({ ...e, dateKey })
+        }
+      })
+    })
+    return list.sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+  }, [entries])
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return null
@@ -1178,7 +1622,7 @@ const selectDate = useCallback((key) => {
           {/* View tabs */}
           <div className="view-tabs">
             <button className="menu-btn" onClick={() => setSidebarOpen(o => !o)} title="Menu">☰</button>
-            {['daily', 'weekly', 'monthly', 'yearly', 'search'].map(v => (
+            {['daily', 'weekly', 'monthly', 'yearly', 'tasks', 'search'].map(v => (
               <button
                 key={v}
                 className={`view-tab${view === v && !activeCollection ? ' active' : ''}`}
@@ -1187,6 +1631,14 @@ const selectDate = useCallback((key) => {
                 {v.charAt(0).toUpperCase() + v.slice(1)}
               </button>
             ))}
+            <button
+              className={`header-sync-btn${isRefreshing ? ' syncing' : ''}`}
+              onClick={() => { setIsRefreshing(true); router.refresh(); setTimeout(() => setIsRefreshing(false), 1000) }}
+              disabled={isRefreshing}
+              title="Sync Data"
+            >
+              <span className="sync-icon">↻</span>
+            </button>
           </div>
 
           {!activeCollection && view === 'daily' && (
@@ -1489,6 +1941,23 @@ const selectDate = useCallback((key) => {
             setView={setView}
             filterType={filterType}
             onSelectMonth={(year, month) => { setViewMonth({ year, month }); setView('monthly') }}
+          />
+        )}
+
+        {!activeCollection && view === 'tasks' && (
+          <TasksView
+            globalEntries={globalEntriesState}
+            openDatedTasks={openDatedTasks}
+            onToggle={handleToggle}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
+            onAdd={handleGlobalAdd}
+            onSchedule={handleSchedule}
+            dragIdRef={dragIdRef}
+            dragOverElRef={dragOverElRef}
+            handleReorder={handleReorder}
+            selectDate={selectDate}
+            setView={setView}
           />
         )}
 

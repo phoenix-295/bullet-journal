@@ -1765,6 +1765,39 @@ body {
   color: var(--ink);
 }
 
+/* ─── Header Sync Button ────────────────────────────────────── */
+.header-sync-btn {
+  display: flex;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.12s ease, background 0.12s ease;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.header-sync-btn:hover:not(:disabled) {
+  background: var(--parchment-alt);
+  color: var(--ink);
+}
+
+.header-sync-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.header-sync-btn.syncing .sync-icon {
+  animation: spin 0.7s linear infinite;
+}
+
+
 /* ─── Sidebar overlay (mobile) ──────────────────────────────── */
 .sidebar-overlay {
   display: none;
@@ -2044,3 +2077,195 @@ body {
   outline: none;
   border-color: var(--sienna-light);
 }
+
+.tasks-view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: 100%;
+  padding: 24px 52px 32px;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .tasks-view-container {
+    padding: 16px 20px 24px;
+    overflow-y: auto; /* Allow full page scrolling on mobile/smaller devices */
+  }
+}
+
+
+.tasks-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--parchment-border);
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+}
+
+.tasks-view-title {
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tasks-filter-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tasks-filter-tab {
+  background: transparent;
+  border: 1px solid var(--parchment-border);
+  color: var(--muted);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.tasks-filter-tab.active {
+  background: var(--ink);
+  color: var(--parchment);
+  border-color: var(--ink);
+}
+
+.tasks-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 768px) {
+  .tasks-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    flex: none;
+  }
+}
+
+.tasks-col {
+  display: flex;
+  flex-direction: column;
+  background: var(--parchment-alt);
+  border: 1px solid var(--parchment-border);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tasks-col .journal-entries {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.entry-date-label {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--parchment-border);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.tasks-col-title {
+  font-family: var(--font-display), "Cormorant Garamond", Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.tasks-col-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.dated-task-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.dated-task-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--parchment-border);
+  color: var(--muted);
+  margin-left: auto;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.schedule-picker-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.schedule-date-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.schedule-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--parchment-alt);
+  border: 1px solid var(--parchment-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  z-index: 1000;
+  min-width: 140px;
+  margin-top: 6px;
+}
+
+.schedule-dropdown-item {
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-size: 12px;
+  padding: 8px 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.12s ease, color 0.12s ease;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.schedule-dropdown-item:hover {
+  background: var(--parchment-border);
+}
+
+
+
